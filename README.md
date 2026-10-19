@@ -12,13 +12,11 @@ The reviewer learns contracts and conventions before applying defaults. Findings
 
 ## Install
 
-From this kit's checkout, with Python 3:
+Copy `repo/.agents/skills/code-quality-review/` into your repository, add the entry points for the tools you use, and paste the marked block from `repo/AGENTS.md`, `repo/CLAUDE.md` and `repo/REVIEW.md` into your existing files (or copy them if absent). Step by step, plus a non-destructive installer and personal setup: [INSTALL.md](INSTALL.md).
 
 ```bash
-python3 scripts/install.py "/path/to/your repository"
+python3 scripts/install.py "/path/to/your repository"     # optional: does the copy-and-append for you, never overwrites
 ```
-
-The installer preserves existing guidance and overrides, appends its marked guidance once, and refuses conflicting skill assets before changing files. Review the resulting diff before committing. [Install details, updates and personal setup](INSTALL.md).
 
 | Interactive tool | Discovery | Invoke |
 | --- | --- | --- |
@@ -34,7 +32,6 @@ Hosted adapters use `AGENTS.md` for Codex GitHub review, `REVIEW.md` for Devin R
 Run from **this kit's checkout**, not the installed target:
 
 ```bash
-python3 -m unittest discover -s tests
 bash examples/java-sample/try.sh
 KEEP=1 bash examples/java-sample/try.sh
 ```
@@ -49,7 +46,7 @@ repo/.agents/review-overrides.md           optional repository exceptions
 repo/.claude/skills/code-quality-review/   Claude entrypoint
 repo/.factory/skills/review-guidelines/    Factory code-review adapter
 repo/AGENTS.md repo/CLAUDE.md repo/REVIEW.md
-scripts/install.py                       preserving repository installer
+scripts/install.py                       optional non-destructive installer
 examples/java-sample/                    review fixture
 ```
 
