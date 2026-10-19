@@ -1,0 +1,177 @@
+{
+  "instructions": "Review each independent case using the skill. Snippets are excerpts; imports, other wiring, and focused tests exist unless the case says otherwise. Judge only the shown change against the supplied contracts. Return case id, findings with rule IDs and reason, or an empty finding list. Do not suggest changes outside the case.",
+  "cases": [
+    {
+      "id": "documented_remote_get",
+      "context": "Repository API documentation defines getX as remote HTTP lookup. Five neighboring client methods follow it. Tests cover remote failure.",
+      "code": "Invoice getInvoice(String id) { return client.getForObject(\"/invoices/\" + id, Invoice.class); }",
+      "expected": {
+        "must_report_any": [],
+        "must_not_report": [
+          "NAME-M2"
+        ],
+        "clean": true
+      }
+    },
+    {
+      "id": "hidden_write_in_query",
+      "context": "Repository contract defines isX as a pure boolean query. isEligible is called repeatedly to render a preview; reserving stock changes shared state.",
+      "code": "boolean isEligible(Order order) { inventory.reserve(order.id()); return true; }",
+      "expected": {
+        "must_report_any": [
+          [
+            "NAME-M2",
+            "DP-CQS",
+            "BUG-LOGIC"
+          ]
+        ],
+        "must_not_report": [],
+        "clean": false
+      }
+    },
+    {
+      "id": "spring_proxy_exception",
+      "context": "New service uses standard class-based Spring AOP, no interface. No source subclass or extension Javadoc. Transaction annotation must keep working.",
+      "code": "@Service\nclass InvoiceService {\n  @Transactional public void settleInvoice(String id) { repository.markPaid(id); }\n}",
+      "expected": {
+        "must_report_any": [],
+        "must_not_report": [
+          "JAVA-API-FINAL",
+          "OVER-INTERFACE"
+        ],
+        "clean": true
+      }
+    },
+    {
+      "id": "broken_spring_proxy",
+      "context": "New service uses class-based Spring AOP and has no interface. The transaction must be applied by a generated subclass.",
+      "code": "@Service\nfinal class InvoiceService {\n  @Transactional public void settleInvoice(String id) { repository.markPaid(id); }\n}",
+      "expected": {
+        "must_report_any": [
+          [
+            "BUG-WIRING",
+            "JAVA-API-FINAL",
+            "JAVA-SPRING-TX-PLACEMENT"
+          ]
+        ],
+        "must_not_report": [],
+        "clean": false
+      }
+    },
+    {
+      "id": "operational_timeout",
+      "context": "Only one deployment exists. Its operator runbook requires changing the upstream timeout without rebuilding during incidents. Client configuration validates a positive timeout and has a default.",
+      "code": "@ConfigurationProperties(\"billing.http\")\nrecord BillingHttpProperties(Duration timeout) {}",
+      "expected": {
+        "must_report_any": [],
+        "must_not_report": [
+          "OVER-CONFIG",
+          "OVER-FUTURE"
+        ],
+        "clean": true
+      }
+    },
+    {
+      "id": "speculative_option",
+      "context": "This internal helper has one caller, which always passes false. There is no operational, compatibility, invariant, extension or boundary requirement. The author says the branch is for a possible future product.",
+      "code": "String formatInvoice(Invoice invoice, boolean useFutureStyle) {\n  return useFutureStyle ? futureFormatter.format(invoice) : formatter.format(invoice);\n}",
+      "expected": {
+        "must_report_any": [
+          [
+            "OVER-CONFIG",
+            "OVER-FUTURE",
+            "DP-YAGNI"
+          ]
+        ],
+        "must_not_report": [],
+        "clean": false
+      }
+    },
+    {
+      "id": "single_io_port",
+      "context": "PaymentGateway is owned by the use case. StripePaymentGateway is its sole production implementation; a fake is used in tests. It isolates the external payment provider.",
+      "code": "interface PaymentGateway { RefundId sendRefund(InvoiceId id, Money amount); }",
+      "expected": {
+        "must_report_any": [],
+        "must_not_report": [
+          "OVER-INTERFACE",
+          "PAT-SPECULATIVE"
+        ],
+        "clean": true
+      }
+    },
+    {
+      "id": "unneeded_policy_interface",
+      "context": "New private-module indirection has one implementation, one caller, no API or architectural boundary, no current variation and no protected invariant. The class only compares two ints; the interface is justified as maybe useful later.",
+      "code": "interface CountPolicy { boolean isAllowed(int count); }\nfinal class DefaultCountPolicy implements CountPolicy { public boolean isAllowed(int count) { return count <= 10; } }",
+      "expected": {
+        "must_report_any": [
+          [
+            "OVER-INTERFACE",
+            "DP-YAGNI",
+            "PAT-SPECULATIVE"
+          ]
+        ],
+        "must_not_report": [],
+        "clean": false
+      }
+    },
+    {
+      "id": "jdk24_monitor",
+      "context": "Production runtime is JDK 24. This private monitor protects a bounded operation on virtual threads. No contention, latency or native/foreign-call pinning evidence is present.",
+      "code": "synchronized (lock) { output.write(bytes); }",
+      "expected": {
+        "must_report_any": [],
+        "must_not_report": [
+          "JAVA-CONC-VIRTUAL",
+          "JAVA-CONC-JUC"
+        ],
+        "clean": true
+      }
+    },
+    {
+      "id": "threadsafe_random",
+      "context": "A shared java.util.Random is used at low rate for a non-security randomized visualization. There is no measured contention and no cryptographic requirement.",
+      "code": "private static final Random RANDOM = new Random();\nint nextColorIndex() { return RANDOM.nextInt(8); }",
+      "expected": {
+        "must_report_any": [],
+        "must_not_report": [
+          "JAVA-CONC-UNSAFE-TYPES",
+          "SEC-CRYPTO"
+        ],
+        "clean": true
+      }
+    },
+    {
+      "id": "documented_impl_suffix",
+      "context": "Affected module documentation requires RoleImpl implementation names. Six neighboring classes follow this. It is an existing required role interface, not a new abstraction.",
+      "code": "final class InvoiceRepositoryImpl implements InvoiceRepository {}",
+      "expected": {
+        "must_report_any": [],
+        "must_not_report": [
+          "NAME-T2",
+          "NAME-T4",
+          "CONV-NAME"
+        ],
+        "clean": true
+      }
+    },
+    {
+      "id": "actual_invariant_break",
+      "context": "Account is a DDD aggregate. Its documented invariant is balance >= 0, enforced by withdraw(Money). New endpoint code calls the new unrestricted setter with a negative amount; no validation intervenes.",
+      "code": "public void setBalance(Money balance) { this.balance = balance; }",
+      "expected": {
+        "must_report_any": [
+          [
+            "DP-ENC",
+            "DP-TYPES",
+            "BUG-LOGIC",
+            "DATA-INVARIANT"
+          ]
+        ],
+        "must_not_report": [],
+        "clean": false
+      }
+    }
+  ]
+}

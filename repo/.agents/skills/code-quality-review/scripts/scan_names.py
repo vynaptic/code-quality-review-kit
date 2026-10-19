@@ -53,6 +53,10 @@ CONF_ORDER = {"low": 0, "medium": 1, "high": 2}
 # Data structures
 # ----------------------------------------------------------------------------
 
+class ScanError(Exception):
+    """The requested input could not be scanned completely."""
+
+
 @dataclass
 class Finding:
     file: str
@@ -111,13 +115,11 @@ def load_rules() -> dict:
 
 
 # ----------------------------------------------------------------------------
-# Repo-consistency: what the base tree already does (repo convention wins)
+# Advisory evidence: occurrence counts do not establish a convention on their own
 # ----------------------------------------------------------------------------
 
 TYPE_DECL_GREP = r"(^|[^A-Za-z0-9_])(class|interface|enum|record|struct|trait|protocol|object)[[:space:]]+[A-Z][A-Za-z0-9_]*"  # POSIX ERE: no \b
-TYPE_DECL_PARSE = re.compile(r"\b(class|interface|enum|record|struct|trait|protocol|object)\s+([A-Z][A-Za-z0-9_]*)")
-DECL_PREFIX = re.compile(r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|static|final|abstract|synchronized|default|override|open|suspend|async|fun|def|func|pub|fn)\s+)*(?:[\w<>\[\],?.*&]+\s+)?(?:\(\s*\w+\s+\*?\w+\s*\)\s*)?(?:(?:check|handle|process|do|perform|manage)[A-Z_]\w*)\s*\(")
-GIT_GREP_PATHSPECS = ["*.java", "*.kt", "*.kts", "*.cs", "*.ts", "*.tsx", "*.js", "*.jsx", "*.py", "*.go", "*.rs", "*.swift"]
+GIT_GREP_PATHSPECS = ["*" + ext for ext in LANG_BY_EXT]
 
 
 def is_tool_folder(norm_path: str) -> bool:
@@ -127,16 +129,17 @@ def is_tool_folder(norm_path: str) -> bool:
 
 def _git_grep_lines(regex: str, ref: str) -> List[Tuple[str, str]]:
     """Return (path, line_text) for lines in `ref` matching `regex` (ERE)."""
-    code, out = run_git(["grep", "-I", "-n", "-E", regex, ref, "--", *GIT_GREP_PATHSPECS])
-    if code not in (0, 1):
-        return []
+    _, out = run_git(["grep", "-I", "-z", "-n", "-E", regex, ref, "--", *GIT_GREP_PATHSPECS],
+                     allowed=(0, 1))  # grep's 1 means no matches, not an error
     rows: List[Tuple[str, str]] = []
-    for raw in out.splitlines():
-        # format: <ref>:<path>:<line>:<text>
-        parts = raw.split(":", 3)
-        if len(parts) < 4:
-            continue
-        rows.append((parts[1], parts[3]))
+    # With -z, filenames and line numbers end in NUL; source lines end in LF.
+    # A filename may itself contain colons, tabs or newlines.
+    prefix = ref + ":"
+    for match in re.finditer(r"([^\0]+)\0\d+\0([^\n]*)\n?", out):
+        filename, source = match.groups()
+        if not filename.startswith(prefix):
+            raise ScanError("unexpected filename in git grep output")
+        rows.append((filename[len(prefix):], source))
     return rows
 
 
@@ -152,14 +155,16 @@ def repo_convention_counts(ref: Optional[str], rules: dict) -> Dict[str, int]:
         norm = path.replace(os.sep, "/")
         if TEST_PATH_RE.search(norm) or GENERATED_PATH_RE.search(norm) or is_tool_folder(norm):
             continue
-        m = TYPE_DECL_PARSE.search(text)
-        if not m:
+        lang = LANG_BY_EXT.get(Path(norm).suffix)
+        if not lang or is_comment(text, lang):
             continue
-        kw, name = m.group(1), m.group(2)
-        words = split_words(name)
+        decl = extract_type(text, FileContext(path=norm, lang=lang))
+        if not decl:
+            continue
+        words = split_words(decl.name)
         if words and words[-1] in suffixes:
             counts["suffix:" + words[-1]] = counts.get("suffix:" + words[-1], 0) + 1
-        if kw in ("interface", "protocol", "trait") and re.match(r"^I[A-Z][a-z]", name) and not norm.endswith(".cs"):
+        if decl.is_interface and re.match(r"^I[A-Z][a-z]", decl.name) and lang != "csharp":
             counts["iprefix"] = counts.get("iprefix", 0) + 1
     if vague:
         alt = "|".join(sorted(vague))
@@ -167,19 +172,21 @@ def repo_convention_counts(ref: Optional[str], rules: dict) -> Dict[str, int]:
             norm = path.replace(os.sep, "/")
             if TEST_PATH_RE.search(norm) or GENERATED_PATH_RE.search(norm) or is_tool_folder(norm) or text.rstrip().endswith(";"):
                 continue
-            dm = DECL_PREFIX.match(text)
-            if not dm:
+            lang = LANG_BY_EXT.get(Path(norm).suffix)
+            if not lang or is_comment(text, lang):
                 continue
-            vm = re.search(r"\b(" + alt + r")[A-Z_]", text)
-            if vm:
-                counts["verb:" + vm.group(1)] = counts.get("verb:" + vm.group(1), 0) + 1
+            decl = extract_method(text, FileContext(path=norm, lang=lang))
+            words = split_words(decl.name) if decl else []
+            if words and words[0].lower() in vague:
+                key = "verb:" + words[0].lower()
+                counts[key] = counts.get(key, 0) + 1
     return counts
 
 
 def repo_note(rules: dict, key: str, what: str) -> Optional[str]:
     n = rules["_repo_counts"].get(key, 0)
     if n >= rules["_repo_min"]:
-        return f" Established in this repo ({n} existing {what}); repo convention wins unless .agents/review-overrides.md says otherwise."
+        return f" Advisory evidence: {n} existing {what}; confirm scope and competing conventions before applying an exception."
     return None
 
 
@@ -627,10 +634,8 @@ def check_method(decl: MethodDecl, ctx: FileContext, line_no: int, rules: dict, 
         note = repo_note(rules, "verb:" + verb, f"methods start with '{verb}'")
         if verb == "handle" and nouns and nouns[0] not in rules["_vague_nouns"]:
             add("NAME-M3", "low", "'handle' is acceptable only for event/command/UI handlers (handleOrderPlaced, handleClick). Otherwise name the outcome." + (note or ""))
-        elif note:
-            add("NAME-M3", "low", f"Vague verb '{words[idx]}' by default." + note)
         else:
-            add("NAME-M3", "medium", f"Vague verb '{words[idx]}': say what actually happens (validate…, save…, send…, calculate…, parse…, authorize…).")
+            add("NAME-M3", "medium", f"Vague verb '{words[idx]}': say what actually happens (validate…, save…, send…, calculate…, parse…, authorize…)." + (note or ""))
         return
 
     if not is_verb(verb, verbs) and not phrasal:
@@ -675,7 +680,7 @@ def check_type(decl: TypeDecl, ctx: FileContext, line_no: int, rules: dict, out:
             add("NAME-T3", "high", "C# interfaces must start with 'I' (e.g. IPaymentGateway).")
         elif lang != "csharp" and i_prefixed:
             note = repo_note(rules, "iprefix", "'I'-prefixed interfaces")
-            add("NAME-T3", "low" if note else "medium", f"Drop the 'I' prefix; in this language interfaces are named by role (e.g. '{core[1:]}')." + (note or ""))
+            add("NAME-T3", "medium", f"Drop the 'I' prefix; in this language interfaces are named by role (e.g. '{core[1:]}')." + (note or ""))
         if last in ("Interface", "Iface", "Contract") and len(words) > 1:
             add("NAME-T3", "medium", "Don't encode 'Interface' in the name; name the role/capability.")
 
@@ -688,7 +693,7 @@ def check_type(decl: TypeDecl, ctx: FileContext, line_no: int, rules: dict, out:
                 pass
             else:
                 note = repo_note(rules, "suffix:" + last, f"types end in '{last}'")
-                add("NAME-T2", "low" if note else info["confidence"], f"Suffix '{last}' is vague. {info['hint']}" + (note or ""))
+                add("NAME-T2", info["confidence"], f"Suffix '{last}' is vague. {info['hint']}" + (note or ""))
     for pfx, info in rules["banned_type_prefixes"].items():
         if first == pfx and len(words) > 1:
             add("NAME-T2", info["confidence"], f"Prefix '{pfx}' is vague. {info['hint']}")
@@ -700,7 +705,9 @@ def check_type(decl: TypeDecl, ctx: FileContext, line_no: int, rules: dict, out:
         add("NAME-T2", "low", "Numbered type name suggests a parallel implementation; use a meaningful distinction.")
 
     # verb-named types
-    if first.lower() in rules["_type_verbs"] and len(words) > 1 and last not in rules["type_verb_allowed_suffixes"]:
+    allowed_suffix = any(words[-len(suffix_words):] == suffix_words
+                         for suffix_words in map(split_words, rules["type_verb_allowed_suffixes"]))
+    if first.lower() in rules["_type_verbs"] and len(words) > 1 and not allowed_suffix:
         add("NAME-T5", "medium", f"Type name starts with the verb '{first}'. Types are nouns ({first}{''.join(words[1:])} → e.g. a '…{'Calculator' if first.lower() in ('calculate', 'compute') else 'Service'}'), unless it is a Command/Query/UseCase/Request.")
 
     # exceptions
@@ -719,37 +726,99 @@ def check_type(decl: TypeDecl, ctx: FileContext, line_no: int, rules: dict, out:
 # Input: diffs and files
 # ----------------------------------------------------------------------------
 
-def run_git(args: List[str]) -> Tuple[int, str]:
+def run_git(args: List[str], allowed: Tuple[int, ...] = (0,)) -> Tuple[int, str]:
     try:
-        p = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
-        return p.returncode, p.stdout
-    except FileNotFoundError:
-        return 127, ""
+        p = subprocess.run(["git", *args], capture_output=True, check=False)
+    except OSError as exc:
+        if isinstance(exc, FileNotFoundError) and 127 in allowed:
+            return 127, ""
+        raise ScanError(f"cannot run git: {exc}") from exc
+    if p.returncode not in allowed:
+        detail = os.fsdecode(p.stderr).strip() or f"exit status {p.returncode}"
+        raise ScanError(f"git {args[0]} failed: {detail}")
+    # Decode without universal-newline translation: NUL-separated filenames can
+    # contain literal CR/LF and must round-trip unchanged.
+    return p.returncode, os.fsdecode(p.stdout)
+
+
+def resolve_ref(ref: str) -> str:
+    """Require an explicit ref to identify a commit, never a Git option."""
+    if not ref:
+        raise ScanError("Git ref must not be empty")
+    try:
+        _, out = run_git(["rev-parse", "--verify", "--end-of-options", ref + "^{commit}"])
+    except ScanError as exc:
+        raise ScanError(f"cannot resolve ref {ref!r}: {exc}") from exc
+    return out.strip()
+
+
+def optional_head() -> Optional[str]:
+    code, out = run_git(["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], allowed=(0, 1))
+    return out.strip() if code == 0 else None
 
 
 def detect_base() -> Optional[str]:
     for cand in ("origin/main", "origin/master", "origin/develop", "main", "master", "develop"):
-        code, out = run_git(["merge-base", "HEAD", cand])
+        code, _ = run_git(["rev-parse", "--verify", "--quiet", cand + "^{commit}"], allowed=(0, 1))
+        if code != 0:
+            continue
+        code, out = run_git(["merge-base", "HEAD", cand], allowed=(0, 1))
         if code == 0 and out.strip():
             return out.strip()
     return None
+
+
+def decode_diff_path(header: str) -> str:
+    """Decode Git's C-quoted filename, including octal bytes in UTF-8 names."""
+    path = header.split("\t", 1)[0]  # optional timestamp in a plain unified diff
+    if not path.startswith('"'):
+        return path
+    if not path.endswith('"'):
+        raise ScanError("unterminated quoted diff filename")
+    escapes = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13,
+               '"': 34, "\\": 92}
+    decoded = bytearray()
+    index = 1
+    end = len(path) - 1
+    while index < end:
+        char = path[index]
+        if char != "\\":
+            decoded.extend(os.fsencode(char))
+            index += 1
+            continue
+        index += 1
+        if index >= end:
+            raise ScanError("incomplete escape in quoted diff filename")
+        char = path[index]
+        if char in escapes:
+            decoded.append(escapes[char])
+            index += 1
+        elif char in "01234567":
+            match = re.match(r"[0-7]{1,3}", path[index:end])
+            value = int(match.group(), 8)
+            if value > 255:
+                raise ScanError("invalid octal byte in quoted diff filename")
+            decoded.append(value)
+            index += len(match.group())
+        else:
+            raise ScanError("unsupported escape in quoted diff filename")
+    return os.fsdecode(bytes(decoded))
 
 
 def iter_diff(diff_text: str) -> Iterable[Tuple[str, int, str, bool]]:
     """Yield (path, new_line_no, text, is_added) for context and added lines."""
     path: Optional[str] = None
     new_no = 0
-    for raw in diff_text.splitlines():
+    for raw in diff_text.split("\n"):
         if raw.startswith("diff --git"):
             path = None
             continue
         if raw.startswith("+++ "):
-            p = raw[4:].strip()
+            p = decode_diff_path(raw[4:])
             if p == "/dev/null":
                 path = None
             else:
                 path = p[2:] if p.startswith("b/") else p
-                path = path.split("\t")[0]
             continue
         if raw.startswith("--- "):
             continue
@@ -776,40 +845,44 @@ def iter_files(paths: List[str]) -> Iterable[Tuple[str, int, str, bool]]:
                 for i, text in enumerate(fh, start=1):
                     yield p, i, text.rstrip("\n"), True
         except OSError as exc:
-            print(f"warning: cannot read {p}: {exc}", file=sys.stderr)
+            raise ScanError(f"cannot read {p!r}: {exc}") from exc
 
 
 def in_git_work_tree() -> bool:
-    code, _ = run_git(["rev-parse", "--is-inside-work-tree"])
-    return code == 0
+    code, out = run_git(["rev-parse", "--is-inside-work-tree"], allowed=(0, 128, 127))
+    return code == 0 and out.strip() == "true"
 
 
 def collect_input(args: argparse.Namespace) -> Tuple[Iterable[Tuple[str, int, str, bool]], Optional[str]]:
-    """Return (lines to scan, git ref of the base tree used for repo-consistency counts or None)."""
+    """Return input lines and the commit used for advisory evidence, if available."""
+    repo_ref = resolve_ref(args.repo_ref) if args.repo_ref is not None else None
+    inside_git = in_git_work_tree()
     if args.files:
-        return iter_files(args.files), (args.repo_ref or ("HEAD" if in_git_work_tree() else None))
+        return iter_files(args.files), (repo_ref or (optional_head() if inside_git else None))
     if args.diff_file:
-        text = sys.stdin.read() if args.diff_file == "-" else Path(args.diff_file).read_text(encoding="utf-8", errors="replace")
-        return iter_diff(text), (args.repo_ref or ("HEAD" if in_git_work_tree() else None))
-    if not in_git_work_tree():
-        sys.exit("error: not a git repository (or git missing). Use --files or --diff-file.")
+        text = sys.stdin.read() if args.diff_file == "-" else Path(args.diff_file).read_text(encoding="utf-8", errors="surrogateescape")
+        return iter_diff(text), (repo_ref or (optional_head() if inside_git else None))
+    if not inside_git:
+        raise ScanError("not a git work tree (or git missing). Use --files or --diff-file.")
+    diff_options = ["--unified=3", "--no-color", "--no-ext-diff", "--no-textconv",
+                    "--src-prefix=a/", "--dst-prefix=b/"]
     if args.staged:
-        _, diff = run_git(["diff", "--cached", "--unified=3", "--no-color"])
-        return iter_diff(diff), (args.repo_ref or "HEAD")
-    base = args.base
-    if base:
-        code, mb = run_git(["merge-base", "HEAD", base])
-        base = mb.strip() if code == 0 and mb.strip() else base
+        _, diff = run_git(["diff", "--cached", *diff_options, "--"])
+        return iter_diff(diff), (repo_ref or optional_head())
+    if args.base is not None:
+        base = resolve_ref(args.base)
+        _, mb = run_git(["merge-base", "HEAD", base])
+        base = mb.strip()
     else:
-        base = detect_base() or "HEAD"
-    _, diff = run_git(["diff", base, "--unified=3", "--no-color"])
+        base = detect_base() or resolve_ref("HEAD")
+    _, diff = run_git(["diff", base, *diff_options, "--"])
     chunks: List[Iterable[Tuple[str, int, str, bool]]] = [iter_diff(diff)]
     if not args.no_untracked:
-        _, untracked = run_git(["ls-files", "--others", "--exclude-standard"])
-        files = [f for f in untracked.splitlines() if Path(f).suffix in LANG_BY_EXT]
+        _, untracked = run_git(["ls-files", "-z", "--others", "--exclude-standard"])
+        files = [f for f in untracked.split("\0") if f and Path(f).suffix in LANG_BY_EXT]
         chunks.append(iter_files(files))
     print(f"scope: git diff {base[:12]} (+ uncommitted{'' if args.no_untracked else ' + untracked'})", file=sys.stderr)
-    return (item for chunk in chunks for item in chunk), (args.repo_ref or base)
+    return (item for chunk in chunks for item in chunk), (repo_ref or base)
 
 
 # ----------------------------------------------------------------------------
@@ -864,7 +937,7 @@ def render_repo_conventions(rules: dict) -> str:
         kind, _, what = key.partition(":")
         label = {"suffix": f"*{what} types", "verb": f"{what}* methods", "iprefix": "I*-prefixed interfaces"}.get(kind, key)
         parts.append(f"{label} ×{n}")
-    return ("Repo conventions detected in the base tree (matching candidates downgraded to 'low'; see references/repo-conventions.md): "
+    return ("Advisory naming counts in the base tree (confidence unchanged; confirm scope and competing conventions before applying an exception): "
             + ", ".join(parts) + ".")
 
 
@@ -903,15 +976,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--min-confidence", choices=["low", "medium", "high"], default="low")
     ap.add_argument("--format", choices=["markdown", "json"], default="markdown")
     ap.add_argument("--fail-on", choices=["low", "medium", "high"], help="Exit 1 if any finding at/above this confidence (for CI).")
-    ap.add_argument("--repo-ref", help="Git ref whose tree defines the repo's existing conventions (default: the diff base, or HEAD).")
-    ap.add_argument("--ignore-repo-conventions", action="store_true", help="Do not downgrade candidates that match an established repo convention.")
+    ap.add_argument("--repo-ref", help="Git ref to read for advisory naming counts (default: the diff base, or HEAD).")
+    ap.add_argument("--ignore-repo-conventions", action="store_true", help="Omit advisory naming counts; counts never change candidate confidence.")
     args = ap.parse_args(argv)
 
-    rules = load_rules()
-    lines, ref = collect_input(args)
-    if not args.ignore_repo_conventions:
-        rules["_repo_counts"] = repo_convention_counts(ref, rules)
-    findings = scan(lines, rules, args.include_tests)
+    try:
+        rules = load_rules()
+        lines, ref = collect_input(args)
+        if not args.ignore_repo_conventions:
+            rules["_repo_counts"] = repo_convention_counts(ref, rules)
+        findings = scan(lines, rules, args.include_tests)
+    except (ScanError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     shown = [f for f in findings if CONF_ORDER[f.confidence] >= CONF_ORDER[args.min_confidence]]
     if args.format == "json":
         print(json.dumps({"repo_conventions": {k: v for k, v in rules["_repo_counts"].items() if v >= rules["_repo_min"]},

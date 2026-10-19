@@ -1,11 +1,11 @@
 # Simplicity and Readability — the over-engineering guard
 
-Code must be as simple as the problem, not simpler and not more general. SOLID and patterns are tools for managing complexity that **exists**; applied to complexity that is only imagined, they *are* the complexity. For every new abstraction in a diff, ask two questions:
+Code must be as simple as the problem, not simpler and not more general. SOLID and patterns are tools for managing complexity that **exists**; applied to complexity that is only imagined, they *are* the complexity. Treat the signals below as review prompts. Report only when the current cost exceeds the demonstrated benefit. For each new abstraction ask:
 
-1. **What concrete second case, or which architectural boundary, justifies this now?** If the answer is "a future requirement", it is a finding.
-2. **Is the interface simpler than the implementation it hides?** A module is *deep* when a small interface hides a lot of work (`list.sort()`, `JdbcTemplate.query(...)`). It is *shallow* when the interface is as complex as the code behind it (a service whose every method forwards to a repository). Shallow modules add cost without hiding anything.
+1. **What current benefit justifies this?** Variation, an architectural boundary, invariant protection, compatibility, an extension contract, or an operational requirement can justify it. Speculation alone cannot.
+2. **Is the interface simpler than the implementation it hides?** A module is *deep* when a small interface hides a lot of work (`list.sort()`, `JdbcTemplate.query(...)`). It is *shallow* when the interface is as complex as the code behind it (a service whose every method forwards without enforcing a boundary). Check annotations and contracts: transaction, authorization and compatibility boundaries add value even with short bodies.
 
-Readability is judged from the reader's side: a competent engineer new to the module should follow the change top-down without opening other files or decoding tricks.
+Readability is judged from the reader's side: a competent engineer new to the module should follow the main flow with a small, coherent set of concepts; useful delegation need not be inlined.
 
 Contents: 1. Abstraction budget (OVER-*) · 2. Deep modules and information hiding · 3. Readability (READ-*) · 4. The Spring test · 5. When principles collide with simplicity · 6. Rule IDs
 
@@ -15,20 +15,20 @@ Contents: 1. Abstraction budget (OVER-*) · 2. Deep modules and information hidi
 
 | ID | Signal in the diff | Guard (do not flag when) | Fix |
 | --- | --- | --- | --- |
-| OVER-INTERFACE | Interface with exactly one implementation in the same module, introduced in this diff | It is a port at a boundary (I/O, external system, clock, randomness), a published extension point, or the repo convention mandates it | Use the class; extract the interface when the second implementation arrives |
-| OVER-LAYER | A layer that only forwards calls (`service.findX(id)` → `repository.findX(id)` with nothing added); "manager calls helper calls util"; a use case class per trivial CRUD read | The repo's architecture mandates the layer uniformly (then it is `CONV-*`-consistent; note the cost once under Questions) | Collapse; call the lower layer directly |
-| OVER-GENERIC | Type parameters, generic "engines", reflection-driven registries, plugin mechanisms, annotation processors for one concrete case | The genericity is already exercised by ≥2 real type arguments in the diff or codebase | Concrete types |
+| OVER-INTERFACE | Interface with exactly one implementation in the same module, introduced in this diff | It isolates a real dependency/boundary, exposes a published extension contract, protects compatibility, or follows an established architecture | Use the class; extract the interface when the second implementation arrives |
+| OVER-LAYER | A layer that only forwards calls (`service.findX(id)` → `repository.findX(id)` with nothing added); "manager calls helper calls util"; a use case class per trivial CRUD read | It owns transaction/authorization policy, preserves a module/API boundary, or follows the repo architecture; do not force controller-to-repository access against that contract | Collapse; call the lower layer directly |
+| OVER-GENERIC | Type parameters, generic "engines", reflection-driven registries, plugin mechanisms, annotation processors for one concrete case | Current type safety, an existing generic API contract or real variation requires it | Concrete types |
 | OVER-PATTERN | GoF pattern without its force: Factory for one product, Builder for 2 fields, Strategy with one strategy, Observer with one synchronous listener, Visitor over two types, Command objects for one direct call, Decorator that adds nothing | The force is present (see `design-patterns.md` force table) | Direct code |
-| OVER-CONFIG | Configuration keys, feature flags, constructor options, or parameters for things nobody varies; "configurable" constants; decisions pushed to the caller ("let the user choose the retry count") | A second deployment/tenant/test actually sets the value | Hard-code the sensible value; expose when needed |
+| OVER-CONFIG | Configuration keys, feature flags, constructor options, or parameters for things nobody varies; "configurable" constants; decisions pushed to the caller ("let the user choose the retry count") | Operators need tuning/rollback without rebuilding, deployments vary, or compatibility/security requires the option; another checked-in value is not required | Remove an unused option only when no current requirement justifies it; retain justified settings with safe defaults and validation |
 | OVER-INDIRECTION | Events, callbacks, async or queues where a direct synchronous call is correct and simpler; DI for trivially constructible values (`new ArrayList<>()`, `Clock.systemUTC()` is fine to inject); mapping between two identically-shaped types that are not at a boundary | Cross-module decoupling that is already needed, or a transactional/out-of-process boundary | Direct call; single type |
 | OVER-SPLIT | One idea fragmented across many tiny classes/files; 3-line private methods used once that force the reader to jump; "shallow classes" whose public surface equals their implementation | Extraction that names a concept, removes duplication, or isolates a side effect | Inline; keep an idea in one place |
-| OVER-FUTURE | Unused parameters, hooks "for later", abstract base with one subclass, `v2` of an API with no `v1` consumer difference, `enabled` flags defaulting to the only used value, `TODO: make pluggable` | Nothing — this is YAGNI by definition | Delete; add when needed |
-| OVER-WRAP | Wrapping well-known types in home-made equivalents (own `Result`, own `Optional`, own `Pair`, own HTTP/JSON client wrapper) without adding behaviour; re-implementing utilities that exist in the JDK or an already-present library (`StringUtils`, `Objects`, `Collectors`, Guava, Commons) | The wrapper is the repo's documented anti-corruption layer, or the behaviour genuinely differs | Use the existing type/utility (`CONV-DEP`) |
+| OVER-FUTURE | Unused parameters, hooks "for later", abstract base with one subclass, `v2` of an API with no `v1` consumer difference, `enabled` flags defaulting to the only used value, `TODO: make pluggable` | Framework discovery, external consumers, compatibility or an approved rollout currently needs the code; confirm usage before calling it dead | Delete; add when needed |
+| OVER-WRAP | Wrapping well-known types in home-made equivalents (own `Result`, own `Optional`, own `Pair`, own HTTP/JSON client wrapper) without adding behaviour; re-implementing utilities that exist in the JDK or an already-present library (`StringUtils`, `Objects`, `Collectors`, Guava, Commons) | The wrapper enforces an invariant, boundary, compatibility contract or behavior not supplied by the existing type | Use the existing type/utility (`CONV-DEP`) |
 | OVER-DEFENSIVE | Null checks, try/catch, validation and logging repeated at every layer for the same value; "just in case" fallbacks that hide bugs | Trust boundary (external input) | Validate once at the boundary (`DP-FAIL`), trust inside |
 
-Default severity **MINOR**. **MAJOR** when the abstraction lives in shared/core code, forces the next change to touch more files, or hides the behaviour behind indirection a reader cannot follow (events, reflection, dynamic registries).
+Default severity **MINOR**; **MAJOR** requires a material demonstrated cost, such as an existing change amplified across several owners or a consequential hidden side effect. A shared/core location alone is insufficient.
 
-Finding format: name the missing force explicitly — "no second implementation exists or is planned in this PR; the only consumer is `RefundService`".
+Finding format: state the current cost and why no applicable benefit justifies it. Example: “Only RefundService consumes this pass-through interface; it isolates no dependency, policy or extension contract, yet each method change must be duplicated.”
 
 ---
 
@@ -69,18 +69,15 @@ Default severity **MINOR**; **NIT** for cosmetic items; **MAJOR** only when read
 
 ## 4. The Spring test (calibration)
 
-Imagine the diff as a PR to Spring Framework, Spring Boot, or an Apache Commons/Kafka/Camel module. Maintainers there favour:
+Use Spring/Apache as examples of maintainable engineering, subject to each project's own rules:
 
-- **Plain Java**: small final classes, explicit constructors, records for values, no clever generics.
+- **Plain Java**: cohesive classes, explicit contracts, straightforward control flow; retain framework-required extension and generic APIs.
 - **Well-known patterns only where the force is present**: Template Method for resource handling, Strategy for real variants, Adapter at integration points — never a plugin system for one case.
 - **Contracts stated**: nullability, thread-safety, exceptions, immutability in Javadoc and types.
 - **Consistency with the surrounding code** above personal taste.
 - **Reviewable size**: one concept per PR.
 
-Complexity you may add in a PR without a second case: a port interface at an I/O boundary; a value object replacing a primitive that already has rules; a named constant; a private method that names a step; a record for a data clump.
-
-Complexity you may **not** add without a second case: an interface for a service class; a generic base class; a strategy registry; an event bus; a configuration option; a `Utils` class; a new layer; a new module; a new framework or library.
-
+A second implementation is one form of evidence, not an admission rule. A single I/O port, validated value object, transaction boundary, operator-tunable timeout or compatible extension point can be justified now. Prefer the smallest structure that meets the present requirement.
 ---
 
 ## 5. When principles collide with simplicity
@@ -93,9 +90,9 @@ Complexity you may **not** add without a second case: an interface for a service
 | DRY | Abstracting two similar-looking blocks | Rule of three; prefer duplication over the wrong abstraction when the knowledge differs |
 | LoD | A delegate method for every access | Only when the chain reaches through mutable collaborators |
 | Patterns | Showing the catalogue | Name the force first; the simplest structure that resolves it |
-| Testability | Interfaces and injection everywhere | Constructor injection of real collaborators; mock only at process boundaries |
+| Testability | Interfaces and injection everywhere | Inject real collaborators where isolation matters; prefer observable behavior tests over extra interfaces created solely for mocks |
 
-Rule: **prefer the simpler code until the second case arrives**. Refactoring simple, tested code later is cheap; unwinding a speculative abstraction is not.
+Rule: **prefer the simplest design that meets current contracts and credible operational needs**. Retain evidence for those needs; do not build mechanisms solely for imagined futures.
 
 ---
 

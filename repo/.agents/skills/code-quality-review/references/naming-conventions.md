@@ -1,8 +1,8 @@
 # Naming Conventions (enforced)
 
-Names are the cheapest documentation and the most common source of misunderstanding. Review every **new or renamed** identifier in the change. The approved and vague verb lists live in `../assets/naming-rules.json`; keep that file as the single source of truth when the team extends the vocabulary.
+Names are the cheapest documentation and the most common source of misunderstanding. Review new, renamed and behaviorally changed identifiers in the change. The approved and vague verb lists live in `../assets/naming-rules.json`; keep that file as the single source of truth when the team extends the vocabulary.
 
-**Precedence:** an established repository convention (see `repo-conventions.md`: documented, or ≥3 existing occurrences with no stronger competitor) wins over every *stylistic* rule in this file — suffixes (`*Impl`, `*Dao`, `*Dto`), read verbs (`fetch` vs `retrieve`), `I` prefixes, test names. Only `NAME-M2` (a name that lies about behaviour) never yields, because it is a correctness problem, not a style choice. Framework idioms used by Spring and Apache projects are listed in `java-quality-bar.md` §10 and are never violations.
+**Precedence:** follow [repo-conventions.md](repo-conventions.md). Documented contracts and scoped conventions determine vocabulary, suffixes, read semantics and language idioms. The defaults below apply when that evidence is absent. `NAME-M2` means a contradiction of the actual contract, not disagreement with this table. Preserve third-party contracts and compatibility; flag a naming change only with a concrete cost.
 
 Contents: 1. Methods and functions · 2. Verb contracts · 3. Types (classes, interfaces, structs, enums) · 4. Variables, fields, parameters, constants · 5. Language idioms and exemptions · 6. Framework idioms · 7. Rule IDs
 
@@ -62,9 +62,9 @@ C#: async methods end in `Async` (`LoadOrderAsync`). Other languages: no suffix;
 
 ## 2. Verb contracts (NAME-M2) — the name must not lie
 
-A name that promises one behaviour and does another is a **MAJOR** finding, because callers will rely on the promise.
+These are useful default expectations, not universal API laws. Confirm semantics from documentation, callers and neighboring APIs before reporting a lie. A documented remote `getInvoice`, in-memory `save` or soft `delete` is valid. Report NAME-M2 when behavior contradicts that contract (for example, a pure eligibility predicate reserves stock). Use MAJOR for consequential caller impact; otherwise calibrate to the actual cost.
 
-| Verb | Contract the caller can rely on | Typical lie to flag |
+| Verb | Default expectation when no contract is established | Candidate contradiction to investigate |
 | --- | --- | --- |
 | `get` | Returns an existing value; cheap; no side effects; no remote I/O | `getUser()` that calls an API, writes a cache, or creates the user if missing |
 | `find` | Lookup that may return nothing (`Optional`/`null`/`None`/empty) | `findX` that throws on not-found |
@@ -72,7 +72,7 @@ A name that promises one behaviour and does another is a **MAJOR** finding, beca
 | `list` | Returns a collection (possibly empty), never `null` | returns `null` |
 | `search`, `query` | Criteria-based retrieval, possibly paged | — |
 | `count` | Returns a number, no materialisation of entities | loads all rows then `.size()` |
-| `create`, `new`, `build`, `generate` | Returns a new object/resource | mutates and returns an existing one |
+| `create`, `new`, `build`, `generate` | Creates/builds a value or resource per its documented lifecycle | unexpectedly mutates a caller-owned existing object |
 | `calculate`, `compute`, `derive`, `estimate` | Pure derivation from inputs; no side effects | persists or logs business events |
 | `is`, `has`, `can`, … | Returns boolean; no side effects | returns a result object, or mutates state |
 | `validate`, `verify` | Checks; does not mutate the subject; returns result or throws (be consistent) | "validate" that also normalises/saves |
@@ -82,7 +82,7 @@ A name that promises one behaviour and does another is a **MAJOR** finding, beca
 | `delete` vs `archive`/`deactivate` | `delete` is permanent | soft-delete named `delete` without that being the codebase's documented convention |
 | `save`, `persist`, `store` | Durable write | only updates an in-memory map |
 | `send`, `publish`, `emit`, `notify`, `dispatch` | Outbound communication / event | — |
-| `try` prefix | Returns success indicator instead of throwing (`tryParseAmount`) | throws anyway |
+| `try` prefix | Reports expected failure without throwing (`tryParseAmount`) | throws for the expected failure it promises to report; unrelated programming/I/O errors may still throw |
 
 ---
 
@@ -117,12 +117,12 @@ A type name is a **noun or noun phrase** that tells the reader what *kind* of ob
 | Configuration | Area + `Config`/`Properties`/`Options`/`Settings` | `PaymentRetryConfig` | `Config2` |
 | Enum | Singular noun for the set | `PaymentStatus`, `Currency` | `PaymentStatuses`, `StatusEnum` |
 
-### NAME-T2 — Banned / suspicious type words
-Authoritative lists: `banned_type_suffixes` and `banned_type_prefixes` in `../assets/naming-rules.json`.
+### NAME-T2 — Suspicious type words
+Candidate lists: `banned_type_suffixes` and `banned_type_prefixes` in `../assets/naming-rules.json`. Names are warning signs: confirm an unclear responsibility or a scoped convention violation before reporting. Size and dependency counts alone do not set severity.
 | Word | Severity | Why / what to use instead |
 | --- | --- | --- |
-| `Helper`, `Helpers`, `Utility`, `Utilities`, `Util` | MINOR (MAJOR above ~300 lines or 7 dependencies) | Magnet for unrelated code → SRP violation. Name the real responsibility: `SlugFormatter`, `CurrencyConverter`, `SessionExpiryScheduler`. |
-| `Utils` | MINOR, **not flagged** when it is the Spring/Apache static-holder form | Acceptable only as `final` class + private constructor + all static + stateless + no dependencies + **one subject** in the prefix (`StringUtils`, `CollectionUtils`). `PaymentUtils` mixing formatting, validation and HTTP calls is a finding (also `JAVA-STYLE-UTILS`, `SOLID-SRP`). |
+| `Helper`, `Helpers`, `Utility`, `Utilities`, `Util` | MINOR; MAJOR only with material design cost | Magnet for unrelated code → SRP violation. Name the real responsibility: `SlugFormatter`, `CurrencyConverter`, `SessionExpiryScheduler`. |
+| `Utils` | MINOR, **not flagged** when it is the Spring/Apache static-holder form | Acceptable as a cohesive, stateless static utility with **one subject** in the prefix; use the repository's construction/extension idiom (`StringUtils`, `CollectionUtils`). `PaymentUtils` mixing formatting, validation and HTTP calls is a finding (also `JAVA-STYLE-UTILS`, `SOLID-SRP`). |
 | `Manager` | MINOR, **not flagged** for resource-lifecycle managers | Acceptable when the type owns the lifecycle of a resource or set of resources (`TransactionManager`, `CacheManager`, `ConnectionManager`, `EntityManager`). `OrderManager`/`UserManager` holding assorted business logic is the grab-bag case: name the responsibility (`OrderPlacementService`, `OrderFulfilmentPolicy`). |
 | `Data`, `Info`, `Object`, `Thing`, `Stuff`, `Misc` (suffix); `Common`, `General`, `Misc`, `My` (prefix) | MINOR | Says nothing; use the domain noun. |
 | `Processor`, `Wrapper`, `Handler` (outside event/command handlers and framework hooks such as `BeanPostProcessor`) | MINOR | Name what it produces or adds. |
@@ -139,7 +139,7 @@ Authoritative lists: `banned_type_suffixes` and `banned_type_prefixes` in `../as
 - Python: `Protocol`/`ABC` classes follow the same role-naming rule.
 
 ### NAME-T4 — Implementations distinguish themselves
-If an interface has several implementations, each name must say how it differs: `SystemClock` / `FixedClock`; `SmtpEmailNotifier` / `SlackNotifier`; `StripePaymentGateway` / `AdyenPaymentGateway`. The default implementation may be `Default<Role>`/`Simple<Role>` and the skeletal base `Abstract<Role>` (Spring idiom). If there is only one implementation and none is expected, question whether the interface is needed (`OVER-INTERFACE`) — unless it is a port at an architecture boundary, which is legitimate.
+If an interface has several implementations, each name must say how it differs: `SystemClock` / `FixedClock`; `SmtpEmailNotifier` / `SlackNotifier`; `StripePaymentGateway` / `AdyenPaymentGateway`. The default implementation may be `Default<Role>`/`Simple<Role>` and the skeletal base `Abstract<Role>` (Spring idiom). A single implementation is not a defect. Apply `OVER-INTERFACE` only when the interface adds cost without a current boundary, extension contract or other demonstrated benefit; see `simplicity-and-readability.md`.
 
 ### NAME-T5 — Verb-named types
 A type whose name starts with a verb (`ProcessPayment`, `CalculateTax`) is wrong unless it is a command, query, use case, request or handler (`ProcessPaymentCommand`, `CalculateTaxUseCase`). Otherwise rename to the noun for what it is (`TaxCalculator`).
@@ -178,7 +178,7 @@ Don't repeat the package/module/namespace in the type name (`payments.PaymentsCl
 - **Property accessors are nouns**: Kotlin/C#/Swift properties, Python `@property`, TS/JS `get total()`, Java record accessors (`amount()`), Go getters (`Owner()`, never `GetOwner()`), Rust getters (`fn owner(&self)`, no `get_` prefix).
 - **Static factories and conversions**: `of`, `from`, `valueOf`, `parse`, `copyOf`, `newX`/`NewX` (Go), `new`/`with_capacity` (Rust), `toX`/`asX`/`intoX`, `aToB` conversions (`intToBytes`, `timestamp_to_datetime`), builder `withX`.
 - **Third-person verb forms** of approved verbs are fine (`loads`, `dumps`, `matches`), as are single-word predicates (`supports(type)`, `contains(x)`).
-- **Implementations of an interface you don't own** (framework callbacks, `http.Handler.ServeHTTP`, Spring `Validator.supports`) keep the required name — flag the interface, not the implementer.
+- **Implementations of an interface you don't own** (framework callbacks, `http.Handler.ServeHTTP`, Spring `Validator.supports`) keep the required name. Do not demand changing an external contract.
 - **Swift note:** Apple's API Design Guidelines name side-effect-free methods as noun phrases (`x.distance(to: y)`). This team rule still asks for verb+noun; if a project prefers the Apple idiom, record that in `.agents/review-overrides.md` and the reviewer will follow it.
 - **Fluent DSLs and builders**: `.where(...)`, `.limit(...)`, `.retries(3)` inside an established fluent API.
 - **Tests**: behaviour-style names (`should_reject_expired_card`, `givenExpiredCard_whenAuthorize_thenDeclined`, Go `TestAuthorize_ExpiredCard`) — check them for describing behaviour instead.
@@ -198,7 +198,7 @@ Spring, Spring Boot and Apache projects use a stable vocabulary; new code in suc
 | `<Role>Operations` + `<Role>Template` | `JdbcOperations` / `JdbcTemplate` | interface + resource-handling implementation |
 | `<Thing>Resolver`, `<Thing>Registrar`, `<Thing>Registry`, `<Thing>Customizer`, `<Thing>PostProcessor`, `<Thing>Aware`, `<Thing>Interceptor`, `<Thing>Advisor` | `TenantResolver`, `WebClientCustomizer` | framework roles |
 | `<Resource>Manager` | `TransactionManager`, `CacheManager` | lifecycle of a resource — not a grab-bag |
-| `<Subject>Utils` (static holder) | `StringUtils` | final, static, stateless, one subject |
+| `<Subject>Utils` (static holder) | `StringUtils` | static, stateless, one subject; construction style follows the repo |
 | `do<Verb><Noun>` | `doGetBean` behind `getBean` | template-method worker |
 | `determine<Thing>`, `obtain<Thing>`, `resolve<Thing>`, `supports(..)`, `afterPropertiesSet()`, `postProcess<Thing>`, `customize(..)`, `initialize()`, `destroy()`, `refresh()` | — | standard verbs |
 | `<Problem>Exception` | `NoSuchBeanDefinitionException` | never `<Verb><Noun>Exception` |
@@ -211,16 +211,16 @@ Spring, Spring Boot and Apache projects use a stable vocabulary; new code in suc
 | ID | Rule |
 | --- | --- |
 | NAME-M1 | Method/function must be action verb + noun (noun optional if receiver supplies it) |
-| NAME-M2 | Verb contract: name must not misrepresent behaviour (MAJOR) |
+| NAME-M2 | Behavior contradicts the applicable API/repo contract; severity follows caller impact |
 | NAME-M3 | Vague verb |
 | NAME-M4 | Boolean-returning method must read as a predicate |
 | NAME-M5 | Boolean flag argument |
 | NAME-M6 | Redundant context in method name |
 | NAME-M7 | Inconsistent async naming |
 | NAME-T1 | Type must be a noun named by stereotype and context |
-| NAME-T2 | Banned/suspicious type word |
+| NAME-T2 | Unclear type responsibility or scoped naming violation |
 | NAME-T3 | Interface naming (role/capability; `I` prefix per language) |
-| NAME-T4 | Implementation must name its distinguishing trait (no `Impl`) |
+| NAME-T4 | Implementation names distinguish variants; established repo conventions take precedence |
 | NAME-T5 | Verb-named type that is not a command/query/use case |
 | NAME-T6 | Package/module stutter or missing bounded-context disambiguation |
 | NAME-V1…V4 | Variable naming: content nouns & units; boolean predicates; no abbreviations/encodings; one word per concept |

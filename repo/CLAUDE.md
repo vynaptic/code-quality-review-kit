@@ -1,10 +1,7 @@
-# CLAUDE.md
-
-Project notes for Claude Code. If this repository already has a `CLAUDE.md`, append the section below to it.
-
+<!-- code-quality-review-kit:start -->
 ## Code review
 
-- For any request to review code, a PR, a diff, a branch, staged changes or files — or to check naming, SOLID, design, readability, repository conventions or Java/Spring quality — use the `code-quality-review` skill (`/code-quality-review`, also auto-selected). It lives in `.agents/skills/code-quality-review/` and is exposed to Claude Code through `.claude/skills/code-quality-review/`.
-- The short version of the standard is `REVIEW.md`; per-repository exceptions are in `.agents/review-overrides.md` (only uncommented lines are active).
-- Review-only by default: do not change code during a review unless explicitly asked to fix findings.
-- Learn the repository's own conventions before judging (packaging, exceptions, logging, naming vocabulary, tests); never flag something the codebase does deliberately and consistently, and never introduce a second way of doing a cross-cutting thing when writing code here either.
+Use `/code-quality-review` for requested code, PR, branch, diff or file reviews. The Claude entrypoint is `.claude/skills/code-quality-review/SKILL.md`; the canonical workflow and references live in `.agents/skills/code-quality-review/`.
+
+Follow that workflow and active `.agents/review-overrides.md`. Review-only unless fixes are requested. Learn the repository's contracts and conventions before applying defaults; `REVIEW.md` carries the short guidance for hosted reviewers.
+<!-- code-quality-review-kit:end -->

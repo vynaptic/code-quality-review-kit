@@ -1,6 +1,6 @@
 # Design Principles (enforced)
 
-For each principle: what it means, **signals** to look for in the diff, **false-positive guards** (when not to flag), and the **smallest fix**. A design finding must cite evidence (`file:line`), name the concrete future change it makes hard, and propose a fix. "Violates SRP" alone is not a finding.
+Apply each principle only to the architecture and contracts in scope. Signals invite investigation; they are not automatic violations. Confirm the concrete cost, check guards, and choose the smallest safe fix. A design finding must cite evidence (`file:line`), name the demonstrated change or operation it makes hard, and propose a fix. "Violates SRP" alone is not a finding.
 
 Contents: 1. SOLID · 2. Simplicity (DRY, KISS, YAGNI) · 3. Coupling and object design · 4. Architecture and boundaries · 5. Robustness · 6. Function-level hygiene · 7. Rule IDs
 
@@ -34,12 +34,14 @@ Subtypes must honour the base type's contract.
 - Subtypes that strengthen preconditions (reject inputs the base accepts) or weaken postconditions.
 - Callers doing `instanceof`/type checks to special-case a subtype.
 - Classic shape: `Square extends Rectangle`, `ReadOnlyList extends MutableList`.
+**Guards:** optional operations explicitly permitted by the base contract (for example, an unmodifiable Java collection) do not violate LSP.
 **Fix:** split the abstraction (separate read and write interfaces), use composition, or model as distinct types.
 
 ### SOLID-ISP — Interface Segregation
 Clients should not depend on methods they don't use.
 **Signals:** fat interfaces (≈7+ unrelated methods); implementers that stub methods; a client using one method of a large interface; "god" service interfaces injected everywhere.
-**Fix:** split by client need (role interfaces): `PayoutReader`, `PayoutWriter`.
+**Guards:** unused methods alone are insufficient; show coupling to unrelated changes or unsupported obligations.
+**Fix:** split by demonstrated client need (role interfaces): `PayoutReader`, `PayoutWriter`.
 
 ### SOLID-DIP — Dependency Inversion
 High-level policy depends on abstractions it owns; details depend on those abstractions.
@@ -64,9 +66,9 @@ High-level policy depends on abstractions it owns; details depend on those abstr
 **Fix:** the most direct readable version. Use the specific `READ-*` IDs from `simplicity-and-readability.md` when one fits (`READ-CLEVER`, `READ-SHALLOW`, `READ-GUARD`).
 
 ### DP-YAGNI — You Aren't Gonna Need It
-**Signals:** interfaces with one implementation and no boundary reason; config options nobody sets; extension points, abstract factories, plugin systems, or generic type parameters "for the future"; unused parameters, dead code, commented-out code.
-**Guards:** ports at architectural boundaries (I/O, external systems, time) are justified for testability even with one implementation.
-**Fix:** delete or inline; add the abstraction when the second real case arrives. Use the specific `OVER-*` IDs from `simplicity-and-readability.md` (`OVER-INTERFACE`, `OVER-LAYER`, `OVER-GENERIC`, `OVER-CONFIG`, `OVER-FUTURE`, `OVER-WRAP`) — they name the missing force, which makes the finding actionable.
+**Signals:** interfaces with one implementation and no boundary reason; options with no current variation or operational/compatibility requirement; extension points, abstract factories, plugin systems, or generic type parameters "for the future"; unused parameters, dead code, commented-out code.
+**Guards:** boundaries, invariants, published extension/compatibility contracts and current operational needs can justify structure with one implementation; see the simplicity reference.
+**Fix:** remove unjustified structure; retain the smallest abstraction that serves a current requirement. Use the specific `OVER-*` IDs from `simplicity-and-readability.md` (`OVER-INTERFACE`, `OVER-LAYER`, `OVER-GENERIC`, `OVER-CONFIG`, `OVER-FUTURE`, `OVER-WRAP`) — they name the missing force, which makes the finding actionable.
 
 ### DP-DEEP — Deep modules, information hiding
 A good module has a small interface and a large implementation (Ousterhout). **Signals:** pass-through layers, classes whose public surface mirrors their internals, interfaces as wide as the class behind them, implementation details (ORM types, HTTP codes, JSON annotations) leaking through an API. **Fix:** collapse shallow layers; hide the details behind a smaller role interface (`READ-SHALLOW`, `READ-LEAK`).
@@ -92,7 +94,7 @@ A method either changes state (command) or returns data (query), not both.
 
 ### DP-COMP — Composition over inheritance
 **Signals:** inheritance used for code reuse rather than a true is-a relationship; hierarchies deeper than 2–3 levels; subclasses overriding to disable behaviour; protected mutable state shared down the hierarchy; Template Method chains that are hard to follow.
-**Fix:** inject collaborators (Strategy, Decorator); prefer interfaces + delegation; make classes `final`/sealed by default where the language allows.
+**Fix:** inject collaborators (Strategy, Decorator); prefer interfaces + delegation; close types only when framework proxies, persistence and extension contracts permit it.
 
 ### DP-ENC — Encapsulation
 **Signals:** public mutable fields; getters and setters for every field (anemic objects) where invariants exist; returning internal mutable collections; setters that bypass validation; invariants enforced by callers instead of the object.
@@ -119,7 +121,7 @@ Dependencies point inward: adapters → application → domain. The domain knows
 - Aggregates protect invariants; modify only through the root; one aggregate per transaction where possible; reference other aggregates by ID.
 - Value objects are immutable and validated on creation (`Money`, `Iban`).
 - Ubiquitous language: names in code match the business terms used in tickets/docs.
-- Anemic domain model (all rules in services, entities are data bags) is a MAJOR finding *only* in a codebase that claims DDD; otherwise note it as MINOR at most.
+- Anemic-model findings require a DDD contract and a concrete invariant/cohesion cost. Transaction-script or data-centric architectures are valid; do not request DDD solely as a preference.
 - Anti-corruption layer translates external models; external DTOs must not leak into the domain.
 
 ### DP-API — Public contracts
@@ -134,6 +136,7 @@ Validate inputs where they enter (controller, message consumer, public method) a
 
 ### DP-TYPES — Make illegal states unrepresentable
 **Signals:** primitive obsession (money as `double`, IDs as raw `String`/`long` that can be swapped, status as free `String`); data clumps (`street, city, zip` passed together); boolean blindness (`isActive, isSuspended, isClosed` that can contradict each other).
+**Guards:** a primitive is acceptable when it carries no independent invariant or demonstrated confusion risk. Avoid wrapping every identifier mechanically.
 **Fix:** value objects, enums/sealed types, a single state field with explicit transitions.
 
 ### DP-IMM — Immutability by default
@@ -163,6 +166,6 @@ Soft limits — flag when exceeded **and** readability suffers, not mechanically
 
 SOLID-SRP, SOLID-OCP, SOLID-LSP, SOLID-ISP, SOLID-DIP, DP-DRY, DP-KISS, DP-YAGNI, DP-DEEP, DP-LOD, DP-TDA, DP-CQS, DP-COMP, DP-ENC, DP-COH, DP-GRASP, DP-LAYER, DP-DDD, DP-API, DP-FAIL, DP-TYPES, DP-IMM, DP-IDEM, DP-POLA, DP-SLAP, DP-FUNC.
 
-**Simplicity tie-breaker:** a principle is never a licence for more structure than the diff needs (SRP ≠ one method per class; DIP ≠ interface everything; OCP ≠ a Strategy for every `if`). When a SOLID fix would add an abstraction with no second case and no boundary, do not propose it; see `simplicity-and-readability.md` §5.
+**Simplicity tie-breaker:** a principle is never a licence for more structure than the diff needs (SRP ≠ one method per class; DIP ≠ interface everything; OCP ≠ a Strategy for every `if`). When a SOLID fix adds cost without a present requirement, protected invariant or boundary benefit, do not propose it; see `simplicity-and-readability.md` §5.
 
-Default severities: violations in core domain/shared code that the diff introduces or worsens → **MAJOR**; local and contained → **MINOR**. When the same issue also maps to a PAT-*/SMELL-* ID, report all IDs and use the highest severity. DP-LAYER and SOLID-DIP violations that put infrastructure inside the domain → **MAJOR**. DP-IDEM issues in payment/money paths → **BLOCKER** if a retry can double-charge or double-pay.
+Severity follows concrete impact: materially risky changes → **MAJOR**; contained maintenance costs → **MINOR**. Core/shared location alone does not raise severity. When the same issue also maps to a PAT-*/SMELL-* ID, report all IDs and use the highest severity. DP-LAYER and SOLID-DIP violations that put infrastructure inside the domain → **MAJOR**. DP-IDEM issues in payment/money paths → **BLOCKER** if a retry can double-charge or double-pay.

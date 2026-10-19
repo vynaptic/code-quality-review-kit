@@ -1,8 +1,6 @@
 # Java Quality Bar — Spring Framework / Apache grade
 
-The calibration question for every Java or Kotlin change: **would this be merged into Spring Framework or an Apache Commons project as-is?** Those projects are strict about small, final, immutable classes; explicit contracts (nullability, thread-safety, exceptions); parameterized logging; Javadoc on public API; plain Java over cleverness; and consistency with the surrounding code above personal taste.
-
-Repository conventions (`repo-conventions.md`) override the *stylistic* choices below (logger field name, `*Impl`, `this.` prefix, test suffix). They do not override correctness items.
+Use the repository's API, runtime and framework contracts. Spring and Apache are examples, not a uniform coding standard. Each row supplies a signal and possible fix: check applicability and exceptions before reporting, and choose the smallest safe change. [Repository precedence](repo-conventions.md) applies to architecture and semantics as well as style; actual correctness defects are never excused by repetition.
 
 Contents: 1. API and class design · 2. Exceptions · 3. Logging · 4. Nullability and Optional · 5. Collections, generics, streams · 6. Concurrency · 7. Spring-specific · 8. Javadoc and comments · 9. Style and structure · 10. Framework naming idioms · 11. Kotlin addendum · 12. Rule IDs
 
@@ -13,19 +11,19 @@ Contents: 1. API and class design · 2. Exceptions · 3. Logging · 4. Nullabili
 | ID | Rule | Flag when | Fix |
 | --- | --- | --- | --- |
 | JAVA-API-ACCESS | Minimise accessibility: package-private by default; `public` only for types/members used outside the package; `protected` only on classes designed for extension | New `public` class/method with no external caller; public fields; public nested helper | Reduce visibility; one public type per file |
-| JAVA-API-FINAL | Classes are `final` (or effectively so) unless designed and documented for extension; fields `final` unless mutation is required | New non-final class with no subclass and no "designed for extension" doc; mutable fields that are set once | `final` |
-| JAVA-API-IMMUTABLE | Value types are immutable: all fields final, no setters, defensive copies of mutable inputs/outputs (`List.copyOf`, `new Date(d.getTime())`), no "escaping" of internal arrays/collections | Setter on a value type; constructor stores a caller's mutable list; getter returns internal `List` | Record, `List.copyOf`, unmodifiable view |
+| JAVA-API-FINAL | Prefer closed value types and final fields where compatible with runtime contracts | Unnecessary mutability/extension with a concrete cost; a final type/method that prevents required proxying | Check Spring AOP/configuration proxies, ORM enhancement and extension APIs first. Keep proxy-required types/methods extensible; use `final` only when safe |
+| JAVA-API-IMMUTABLE | Value types are immutable: all fields final, no setters, defensive copies of mutable inputs/outputs (`List.copyOf`, `new Date(d.getTime())`), no "escaping" of internal arrays/collections | Setter on a value type; constructor stores a caller's mutable list; getter returns internal `List` | Record with appropriate defensive copies; a read-only view is not an immutable snapshot |
 | JAVA-API-PRECONDITION | Constructors and public methods validate arguments immediately with a precise message: `Assert.notNull(x, "'x' must not be null")` (Spring), `Objects.requireNonNull(x, "x must not be null")`, `Assert.hasText`, `Assert.isTrue(amount.signum() > 0, "amount must be positive")` | Null/invalid argument discovered deep inside; silent `if (x == null) return` | Fail fast at entry; `IllegalArgumentException` for arguments, `IllegalStateException` for state |
 | JAVA-API-FACTORY | Prefer static factories (`of`, `from`, `valueOf`, `create`, `with*`) when the name adds meaning, the type is a value, or instances may be cached; a builder for 4+ optional parameters; never telescoping constructors | 3+ overloaded constructors; `new X(a, null, null, true)` | Static factory / builder / records with `with` methods |
 | JAVA-API-ENUM | Enums over int/String constants; `EnumSet`/`EnumMap`; no `ordinal()` persistence | `int status = 2`; `String type = "SEPA"` compared with `equals` | Enum with explicit code field |
 | JAVA-API-EQUALS | `equals`/`hashCode`/`toString` on value types, consistent, using all identity fields; `compareTo` consistent with `equals`; use records when possible | Value class without `equals`; `equals` on JPA entity using mutable/generated id before persist | Record, or `Objects.equals/hash` on business key |
 | JAVA-API-INTERFACE | Interface only for a real abstraction: a port at a boundary, a public extension point, or ≥2 implementations. No interface for one class in the same module "for testing" (mock the class or use the port) | `FooService` + `FooServiceImpl` with no second impl and no boundary (unless repo convention) | Collapse to class (see `OVER-INTERFACE`) |
-| JAVA-API-INHERIT | Composition over inheritance; abstract classes only as `Abstract*` skeletal implementations of an interface; no inheritance for code reuse; no `protected` mutable state | `extends` to reuse helper methods; 3+ levels | Delegate; Template Method only with a stable skeleton |
+| JAVA-API-INHERIT | Prefer composition for reuse; preserve framework bases and documented extension contracts. Investigate shared protected mutable state | `extends` to reuse helper methods; 3+ levels | Delegate; Template Method only with a stable skeleton |
 | JAVA-API-SERIAL | `Serializable` only on purpose, with `serialVersionUID`; no Java native serialization for transport | `implements Serializable` cargo-culted on DTOs | Remove, or document why |
 | JAVA-API-VARARGS | Varargs only for homogeneous trailing arguments; no generic varargs without `@SafeVarargs` | `method(String... args)` where a `List` is clearer | Collection parameter |
 | JAVA-API-OBJECT | No `Object`-typed parameters/returns or `Map<String, Object>` across module boundaries | `Map<String, Object> payload` in service API | Typed record/DTO |
 | JAVA-API-BASELINE | Use only language features available at the repo's compiler level (`maven.compiler.release`, `sourceCompatibility`, `toolchain`); use the modern feature when available (records, sealed types, pattern `switch`, text blocks, `var` for obvious types) | Java 21 syntax in a Java 17 module; hand-written POJO where a record fits (Java 16+) | Match the baseline; the profiler reports it |
-| JAVA-API-STATIC | Static only for pure, stateless functions; no static mutable state; no static access to collaborators (`ServiceLocator.get`) | `static Map cache = new HashMap<>()`; static call to a repository | Instance + injection; `ConcurrentHashMap` if truly global |
+| JAVA-API-STATIC | Prefer pure static helpers. Shared mutable state needs explicit ownership and thread safety; avoid hidden static access to collaborators (`ServiceLocator.get`) | Unsynchronized shared mutable cache or hidden static call to a repository; a deliberately shared thread-safe utility is not inherently a defect | Instance + injection; `ConcurrentHashMap` if truly global |
 
 ---
 
@@ -101,14 +99,14 @@ Contents: 1. API and class design · 2. Exceptions · 3. Logging · 4. Nullabili
 | ID | Rule | Flag when | Fix |
 | --- | --- | --- | --- |
 | JAVA-CONC-IMMUTABLE | Shared state is immutable or confined; document thread-safety in the class Javadoc ("This class is thread-safe" / "not thread-safe") when it matters (Spring does) | New stateful singleton bean with mutable fields | Immutable, or confine, or document |
-| JAVA-CONC-JUC | `java.util.concurrent` over `synchronized`/`wait`/`notify`: `ConcurrentHashMap`, `AtomicLong`, `LongAdder`, `ReentrantLock`, `CountDownLatch` | `synchronized (this)` in a public API; `HashMap` shared across threads; double-checked locking without `volatile` | JUC types; `computeIfAbsent` |
+| JAVA-CONC-JUC | Choose the synchronization primitive that protects the whole invariant | Exposed monitor with a demonstrated lock-order risk; unsynchronized shared mutable map; broken compound atomicity | Private monitor, lock, atomic operation or concurrent collection as appropriate. `synchronized` is valid; replacing a map alone does not make multi-step operations atomic |
 | JAVA-CONC-EXECUTOR | Executors come from the repo's configured pools (Spring `TaskExecutor`, named thread factory); never `new Thread`, never `Executors.newCachedThreadPool()` unbounded in prod code; executors shut down | Ad-hoc executor in a service; unnamed threads | Inject the executor; bounded pool |
 | JAVA-CONC-FUTURE | `CompletableFuture` chains handle exceptions (`exceptionally`/`handle`/`whenComplete`); no `.get()` without timeout; no `join()` on request threads without reason | Fire-and-forget future; `.get()` blocking | Handle + timeout |
 | JAVA-CONC-SLEEP | No `Thread.sleep` or busy-wait in production logic; use scheduling/backoff utilities | `Thread.sleep(1000)` retry loop | Retry with backoff (repo's library) |
 | JAVA-CONC-THREADLOCAL | `ThreadLocal` cleared in `finally`; never with pooled threads unless removed | `ThreadLocal.set` without `remove` | try/finally remove |
-| JAVA-CONC-UNSAFE-TYPES | No shared `SimpleDateFormat`, `DecimalFormat`, `Random`, `MessageDigest`, `Matcher`; use `DateTimeFormatter`, `ThreadLocalRandom`/`SecureRandom`, local instances | Static `SimpleDateFormat` | Thread-safe alternatives |
+| JAVA-CONC-UNSAFE-TYPES | Confine or synchronize non-thread-safe `SimpleDateFormat`, `DecimalFormat`, `MessageDigest`, `Matcher` | Concurrent access without synchronization | Immutable/thread-safe alternatives or confinement. `java.util.Random` is thread-safe; use `ThreadLocalRandom` for demonstrated contention and `SecureRandom` for security-sensitive randomness |
 | JAVA-CONC-VOLATILE | Flags read by other threads are `volatile`/`Atomic*`; no non-atomic compound updates (`count++`) on shared fields | `boolean running` without volatile | `AtomicBoolean` |
-| JAVA-CONC-VIRTUAL | With virtual threads (Java 21+): no `synchronized` around I/O (pinning); use `ReentrantLock` | `synchronized` + blocking call in a virtual-thread app | `ReentrantLock` |
+| JAVA-CONC-VIRTUAL | Check the deployed JDK and actual blocking/contended path | On JDK 21–23, frequent/long blocking inside a monitor pins a carrier and can impair throughput | Reduce the critical section or use `ReentrantLock` where needed. JDK 24+ removes monitor-related pinning; do not replace monitors solely for that old limitation. Native/foreign-call pinning still needs separate evidence |
 
 ---
 
@@ -117,8 +115,8 @@ Contents: 1. API and class design · 2. Exceptions · 3. Logging · 4. Nullabili
 | ID | Rule | Flag when | Fix |
 | --- | --- | --- | --- |
 | JAVA-SPRING-CTOR-INJECT | Constructor injection with `final` fields; no `@Autowired` on fields or setters; a single constructor needs no annotation; Lombok `@RequiredArgsConstructor` if the repo uses it | Field injection in new code (unless repo convention) | Constructor |
-| JAVA-SPRING-TX-PLACEMENT | `@Transactional` on service-layer public methods (or the repo's documented layer); not on controllers; `readOnly = true` for reads; no self-invocation (proxy bypass); no checked exceptions that silently skip rollback; no remote calls inside a transaction | `@Transactional` on a controller or private method; `this.doWork()` from a transactional method | Move/extract |
-| JAVA-SPRING-NO-LOGIC-IN-CONTROLLER | Controllers translate HTTP ↔ use case: bind, validate (`@Valid`), call one service, map response. No business rules, no repository calls, no transactions | `if (order.getTotal() > limit)` in a controller; repository injected into controller | Move to service/use case |
+| JAVA-SPRING-TX-PLACEMENT | `@Transactional` on service-layer public methods (or the repo's documented layer); not on controllers; `readOnly = true` for reads; no self-invocation (proxy bypass); no checked exceptions that silently skip rollback; no remote calls inside a transaction | `@Transactional` on a controller or private method; self-call that relies on a distinct transaction attribute or otherwise bypasses required advice | Move/extract |
+| JAVA-SPRING-NO-LOGIC-IN-CONTROLLER | Follow the repo layering: keep business invariants out of HTTP translation. A service may own transaction/authorization policy even when its body delegates. Thin CRUD architecture may legitimately access a repository directly | Business rule in a controller, or repository access that violates the applicable architecture | Move to service/use case |
 | JAVA-SPRING-DTO-BOUNDARY | Entities never serialised directly as responses or bound from requests; DTOs/records at the boundary; map explicitly or with the repo's mapper | `@RequestBody Order order` (entity); returning an entity | DTO + mapper |
 | JAVA-SPRING-CONFIG-PROPS | `@ConfigurationProperties` records/classes with validation over scattered `@Value`; properties in kebab-case; defaults explicit; no secrets in properties files | 4+ `@Value` in one class; `@Value("${x}")` without default on an optional property | Properties class |
 | JAVA-SPRING-BEANS | Stereotypes match roles (`@Service`, `@Repository`, `@Component`); `@Repository` for exception translation; no `@Lazy`/`@DependsOn` to hide cycles; no circular dependencies | New bean cycle; `@Lazy` workaround | Restructure |
@@ -158,7 +156,7 @@ Contents: 1. API and class design · 2. Exceptions · 3. Logging · 4. Nullabili
 | JAVA-STYLE-BRACES | Braces on every block; no single-line `if (x) return;` without braces unless the repo does it |
 | JAVA-STYLE-THIS | `this.` prefix only if the repo uses it consistently (Spring does); otherwise none — never a mix in one class |
 | JAVA-STYLE-CONSTANTS | `private static final` `UPPER_SNAKE_CASE`; group at the top; no magic numbers/strings (NAME-C1); no `interface` used to hold constants |
-| JAVA-STYLE-UTILS | A `*Utils`/`*Support` holder (Spring `StringUtils`, Apache `ArrayUtils`) is acceptable only when: `final` class, private constructor, all static, stateless, no injected dependencies, **one subject** named in the prefix. Anything else is a `NAME-T2`/`SOLID-SRP` finding |
+| JAVA-STYLE-UTILS | A `*Utils` holder is cohesive, stateless and static, with one subject. Construction/extension style follows the repo (Spring `StringUtils` is abstract). `*Support` may be a stateful convenience base; do not apply static-holder rules to it. Report mixed responsibilities, not the suffix alone |
 | JAVA-STYLE-LOMBOK | If the repo uses Lombok: `@Value`/`@Builder` for immutables, `@RequiredArgsConstructor` for injection; never `@Data` on entities or on types with invariants; no `@Setter` on value types; never `@SneakyThrows` in production code |
 | JAVA-STYLE-VAR | `var` only when the type is obvious from the right-hand side (`var order = new Order(...)`), never for method-call results whose type the reader must guess |
 | JAVA-STYLE-TERNARY | No nested ternaries; no ternary with side effects |
@@ -209,10 +207,19 @@ These are the names Spring and Apache projects use; do not flag them, and prefer
 
 Families: `JAVA-API-*`, `JAVA-EXC-*`, `JAVA-LOG-*`, `JAVA-NULL-*`, `JAVA-COLL-*`, `JAVA-CONC-*`, `JAVA-SPRING-*`, `JAVA-DOC-*`, `JAVA-STYLE-*`, `JAVA-KT-*`.
 
-Default severities:
+Severity follows demonstrated impact and the main skill scale, not a keyword match. Defaults below apply only after confirming the contract, trigger and guards:
 - **BLOCKER**: anything that also matches a `BUG-*`/`SEC-*` rule (swallowed exception that loses a payment, shared `SimpleDateFormat`, unbounded executor in a hot path, side effect inside a transaction that can roll back, missing authorization).
-- **MAJOR**: `JAVA-EXC-HIERARCHY`/`TRANSLATE`/`CAUSE`/`SWALLOW` in service or domain code; `JAVA-LOG-PII`; `JAVA-LOG-FACADE` (second facade); `JAVA-SPRING-TX-PLACEMENT`; `JAVA-SPRING-NO-LOGIC-IN-CONTROLLER`; `JAVA-SPRING-DTO-BOUNDARY` on public APIs; `JAVA-API-IMMUTABLE` on shared value types; `JAVA-CONC-*` on shared state; `JAVA-DOC-PUBLIC-API` on a published library.
+- **MAJOR**: consequential `JAVA-EXC-HIERARCHY`/`TRANSLATE`/`CAUSE`/`SWALLOW` violations; `JAVA-LOG-PII`; `JAVA-LOG-FACADE` (second facade); `JAVA-SPRING-TX-PLACEMENT`; `JAVA-SPRING-NO-LOGIC-IN-CONTROLLER`; `JAVA-SPRING-DTO-BOUNDARY` on public APIs; `JAVA-API-IMMUTABLE` on shared value types; `JAVA-CONC-*` on shared state; `JAVA-DOC-PUBLIC-API` on a published library.
 - **MINOR**: the rest.
 - **NIT**: `JAVA-STYLE-*` not covered by a formatter, `JAVA-DOC-NOISE`.
 
 When a `JAVA-*` rule and a `CONV-*`/`NAME-*`/`DP-*` rule both apply, list all IDs and use the highest severity. Style items yield to repo conventions; correctness items do not.
+
+## Sources for version/framework-sensitive rules
+
+- [Spring proxying](https://docs.spring.io/spring-framework/reference/core/aop/proxying.html): class-based proxies cannot subclass final classes.
+- [Java Random](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Random.html): thread safety, contention and security are distinct concerns.
+- [JDK 24 changes](https://docs.oracle.com/en/java/javase/25/migrate/significant-changes-jdk-24.html): monitor-related virtual-thread pinning removed by JEP 491.
+- [Spring StringUtils](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/util/StringUtils.html): a framework utility idiom is not necessarily a final class.
+
+Resolve the repository's supported versions before applying these examples.

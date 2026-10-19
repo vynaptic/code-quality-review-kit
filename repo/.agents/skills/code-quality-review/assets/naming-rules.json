@@ -50,7 +50,7 @@
     "Helper":    {"confidence": "high",   "hint": "Name the real responsibility (e.g. IbanFormatter, RetryPolicy)."},
     "Helpers":   {"confidence": "high",   "hint": "Split by responsibility and name each class for it."},
     "Util":      {"confidence": "high",   "hint": "Name the real responsibility (e.g. SlugFormatter, CurrencyConverter)."},
-    "Utils":     {"confidence": "medium", "hint": "OK only as the Spring/Apache static holder: final class, private constructor, all static, stateless, no dependencies, ONE subject in the prefix (StringUtils). Otherwise split by responsibility and name each class for it."},
+    "Utils":     {"confidence": "medium", "hint": "OK for a cohesive, stateless static utility with one subject (StringUtils), following the repository's construction idiom. Confirm cohesion and dependencies before reporting; otherwise name each responsibility."},
     "Utility":   {"confidence": "high",   "hint": "Name the real responsibility."},
     "Utilities": {"confidence": "high",   "hint": "Split by responsibility."},
     "Data":      {"confidence": "medium", "hint": "Use the domain noun; 'Data' adds nothing."},
@@ -79,7 +79,7 @@
   "default_impl_prefixes": ["Default", "Simple", "Standard", "Abstract", "Base", "Generic", "Composite", "Delegating", "Caching", "Retrying", "Logging"],
 
   "repo_consistency": {
-    "_comment": "scan_names.py downgrades a candidate to 'low' confidence when the base tree already uses the same convention at least min_occurrences times (repo convention wins; see references/repo-conventions.md).",
+    "_comment": "scan_names.py reports base-tree counts at min_occurrences as advisory evidence only. Counts never change confidence: reviewers must confirm scope, competing patterns and documented rules before applying a convention exception.",
     "min_occurrences": 3,
     "type_suffixes": ["Impl", "Utils", "Util", "Helper", "Helpers", "Manager", "Dao", "Dto", "DTO", "Info", "Data", "Handler", "Processor", "Wrapper"],
     "vague_verbs": ["check", "handle", "process", "do", "perform", "manage"]

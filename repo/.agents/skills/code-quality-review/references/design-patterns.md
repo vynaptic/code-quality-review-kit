@@ -1,6 +1,6 @@
 # Design Patterns and Code Smells
 
-Patterns are tools, not goals. Flag a **missing** pattern only when the force it resolves is already present in the code (not hypothetically). Flag a **misused** pattern when it adds indirection without resolving a force. Name the pattern in the finding so the author can look it up, and show the target shape in a few lines.
+Patterns are tools, not goals. Recommend a pattern only when its problem exists and the simpler current design cannot meet the requirement cleanly. A missing named pattern is not itself a defect. Flag a **misused** pattern when it adds indirection without resolving a force. Name the pattern in the finding so the author can look it up, and show the target shape in a few lines.
 
 Contents: 1. Force → pattern table · 2. Modern/enterprise patterns · 3. Pattern misuse · 4. Code smells catalogue · 5. Rule IDs
 
@@ -40,7 +40,7 @@ Contents: 1. Force → pattern table · 2. Modern/enterprise patterns · 3. Patt
 | Read and write models diverge (different shapes/scaling) | **CQRS** (only then) |
 | DB write + message publish must both happen | **Transactional Outbox** |
 | Multi-service business transaction | **Saga** (orchestration/choreography) with compensations |
-| Remote calls without protection | **Timeout + Retry with exponential backoff and jitter + Circuit Breaker + Bulkhead** |
+| Remote-call failure/latency or overload risk | **Timeout**; bounded **Retry** only for transient failures and idempotent operations; **Circuit Breaker/Bulkhead** when isolation requirements justify them |
 | Duplicate deliveries/retries possible | **Idempotency key / Idempotent consumer** |
 | Expensive repeated reads | **Cache-aside** with explicit invalidation and TTL |
 | Feature rollout risk | **Feature flag** / **Branch by abstraction** |
@@ -53,9 +53,9 @@ Template Method for resource handling (`*Operations` interface + `*Template` cla
 
 | ID | Misuse | Why it hurts | Fix |
 | --- | --- | --- | --- |
-| PAT-SINGLETON | Singleton holding global mutable state or accessed statically | Hidden dependency, untestable, thread-safety risk | DI-managed single instance, injected |
+| PAT-SINGLETON | Global singleton creates an evidenced race, hidden dependency or isolation problem | Coupled lifecycle/state or unsafe access; static access alone is not a defect | Inject/encapsulate the dependency where needed; preserve safe shared utilities |
 | PAT-LOCATOR | Service Locator (`ServiceLocator.get(X.class)`, `container.resolve` inside business code) | Hidden dependencies, runtime failures | Constructor injection |
-| PAT-SPECULATIVE | Abstract Factory/Strategy/plugin system with one implementation and no current variation | Indirection without benefit (YAGNI) | Inline until the second case exists (prefer the specific `OVER-PATTERN`/`OVER-INTERFACE` ID) |
+| PAT-SPECULATIVE | Abstract Factory/Strategy/plugin system with no current variation, boundary, extension contract or other present benefit | Indirection without benefit (YAGNI) | Remove unnecessary indirection; preserve justified boundaries (prefer the specific `OVER-PATTERN`/`OVER-INTERFACE` ID) |
 | PAT-DEEP-INHERITANCE | 3+ levels, or inheritance for reuse | Fragile base class | Composition / Strategy / Decorator |
 | PAT-ANEMIC | Entities as data bags + "service" classes holding all rules (in a DDD codebase) | Invariants scattered, duplicated | Move behaviour into aggregates/value objects |
 | PAT-GOD-SERVICE | One service/controller orchestrating everything | SRP, merge conflicts, untestable | Split by use case |

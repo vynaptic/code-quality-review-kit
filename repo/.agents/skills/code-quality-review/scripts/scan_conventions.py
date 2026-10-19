@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Convention Profile generator for the code-quality-review skill.
 
-Reads the repository (git ls-files, or a directory walk) and prints a DRAFT
+Reads a committed snapshot (--ref), or the current tree by default, and prints a DRAFT
 Convention Profile: what this codebase already does for naming, packaging,
 modules, exceptions, logging, nullability, dependency injection, validation,
 immutability, transactions, HTTP APIs, tests, documentation and formatting.
@@ -16,6 +16,7 @@ logging and test libraries).
 
 Usage:
   scan_conventions.py                      # whole repository (current directory)
+  scan_conventions.py --ref <base-commit>   # baseline for a diff review
   scan_conventions.py --root services/billing
   scan_conventions.py --format json
   scan_conventions.py --max-files 3000 --include-tests
@@ -145,16 +146,72 @@ def collect_files(root: str, max_files: int) -> Tuple[List[str], str]:
     code, out = run_git(["ls-files", "-z", "--", "."], root)
     if code == 0:
         files = [f for f in out.split("\0") if f]
-        return files[:max_files * 4], "git"
+        return files, "git"
+    if run_git(["rev-parse", "--show-toplevel"], root)[0] == 0:
+        checked_git(["ls-files", "-z", "--", "."], root)
     files: List[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
         for fn in filenames:
             rel = os.path.relpath(os.path.join(dirpath, fn), root).replace(os.sep, "/")
             files.append(rel)
-            if len(files) >= max_files * 4:
-                return files, "walk"
-    return files, "walk"
+    return sorted(files), "walk"
+
+
+def checked_git(args: List[str], cwd: str) -> bytes:
+    """Snapshot failures must not silently turn into a current-tree profile."""
+    try:
+        result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, check=False)
+    except OSError as ex:
+        raise ValueError(f"cannot run git: {ex}") from ex
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"git {args[0]} failed: {detail or result.returncode}")
+    return result.stdout
+
+
+class GitSnapshot:
+    """Paths and blobs from one immutable commit, scoped to a repository directory."""
+
+    def __init__(self, root: str, ref: str) -> None:
+        if not ref:
+            raise ValueError("--ref must not be empty")
+        requested = Path(root).resolve()
+        existing = requested
+        while not existing.is_dir() and existing != existing.parent:
+            existing = existing.parent
+        repo = Path(os.fsdecode(checked_git(["rev-parse", "--show-toplevel"], str(existing))).rstrip("\n")).resolve()
+        try:
+            relative = requested.relative_to(repo).as_posix()
+        except ValueError as ex:
+            raise ValueError(f"{root} is outside the Git repository") from ex
+        prefix = "" if relative == "." else relative + "/"
+        self.repo = str(repo)
+        self.commit = checked_git(["rev-parse", "--verify", "--end-of-options", ref + "^{commit}"], self.repo).decode().strip()
+        self.blobs: Dict[str, Tuple[str, int]] = {}
+        self.submodules: List[str] = []
+        tree = checked_git(["ls-tree", "-r", "-l", "-z", self.commit], self.repo)
+        for entry in tree.split(b"\0"):
+            if not entry:
+                continue
+            header, path_bytes = entry.split(b"\t", 1)
+            path = os.fsdecode(path_bytes)
+            if not path.startswith(prefix):
+                continue
+            _mode, kind, oid, size = header.split()
+            path = path[len(prefix):]
+            if kind == b"blob":
+                self.blobs[path] = (oid.decode(), int(size))
+            elif kind == b"commit":
+                self.submodules.append(path)
+        if prefix and not self.blobs and not self.submodules:
+            raise ValueError(f"{root} is not a directory in commit {self.commit}")
+
+    def read_text(self, path: str, limit: int = 512_000) -> Optional[str]:
+        oid, size = self.blobs[path]
+        if size > limit:
+            return None
+        return checked_git(["cat-file", "blob", oid], self.repo).decode("utf-8", errors="replace")
 
 
 def read_text(path: str, limit: int = 512_000) -> Optional[str]:
@@ -687,13 +744,19 @@ def package_layout(prof: Profile) -> Dict[str, object]:
 # Driver
 # ----------------------------------------------------------------------------
 
-def profile_repo(root: str, max_files: int, include_tests: bool) -> Tuple[Profile, Dict[str, object]]:
+def profile_repo(root: str, max_files: int, include_tests: bool, ref: Optional[str] = None) -> Tuple[Profile, Dict[str, object]]:
     prof = Profile()
-    files, source = collect_files(root, max_files)
+    snapshot = GitSnapshot(root, ref) if ref is not None else None
+    if snapshot:
+        files, source = list(snapshot.blobs), "git-ref"
+        read = snapshot.read_text
+    else:
+        files, source = collect_files(root, max_files)
+        read = lambda rel: read_text(os.path.join(root, rel))
+    skipped_inputs: Counter = Counter()
     src_count = 0
     for rel in files:
         norm = rel.replace(os.sep, "/")
-        abs_path = os.path.join(root, rel)
         base = os.path.basename(norm)
         for key, rx in CONFIG_PATTERNS.items():
             if rx.search(norm):
@@ -701,27 +764,35 @@ def profile_repo(root: str, max_files: int, include_tests: bool) -> Tuple[Profil
         if any(seg.startswith(".") for seg in norm.split("/")[:-1]):
             continue  # tool folders (.agents/.claude/.factory/.github/…) are not the codebase
         if base in BUILD_FILES or base.endswith((".csproj", ".sln", ".fsproj")):
-            text = read_text(abs_path)
+            text = read(rel)
             if text is not None:
                 analyse_build_file(norm, text, prof)
+            else:
+                skipped_inputs["build unreadable or over 512000 bytes"] += 1
             continue
         if APP_CONFIG_RE.search(norm):
-            text = read_text(abs_path)
+            text = read(rel)
             if text is not None:
                 analyse_app_config(norm, text, prof)
+            else:
+                skipped_inputs["app config unreadable or over 512000 bytes"] += 1
             continue
         lang = LANG_BY_EXT.get(Path(norm).suffix)
         if not lang or GENERATED_PATH_RE.search(norm):
             continue
         is_test = bool(TEST_PATH_RE.search(norm))
         if is_test and not include_tests and prof.test_files > max_files // 2:
+            prof.files_skipped += 1
+            skipped_inputs["test sample limit"] += 1
             continue
         if src_count >= max_files:
             prof.files_skipped += 1
+            skipped_inputs["source sample limit"] += 1
             continue
-        text = read_text(abs_path)
+        text = read(rel)
         if text is None:
             prof.files_skipped += 1
+            skipped_inputs["source unreadable or over 512000 bytes"] += 1
             continue
         src_count += 1
         prof.files_scanned += 1
@@ -731,7 +802,12 @@ def profile_repo(root: str, max_files: int, include_tests: bool) -> Tuple[Profil
         else:
             prof.main_files += 1
         analyse_source(norm, text, lang, is_test, prof)
-    meta = {"root": os.path.abspath(root), "file_source": source, "files_listed": len(files)}
+    submodules = snapshot.submodules if snapshot else []
+    meta = {"root": os.path.abspath(root), "file_source": source, "files_listed": len(files),
+            "snapshot": "commit" if snapshot else "current-tree", "ref": ref,
+            "commit": snapshot.commit if snapshot else None,
+            "sample_incomplete": bool(skipped_inputs or submodules), "skipped_inputs": dict(skipped_inputs),
+            "unexpanded_submodules": submodules}
     return prof, meta
 
 
@@ -829,6 +905,9 @@ def render_markdown(prof: Profile, meta: Dict[str, object]) -> str:
     out: List[str] = []
     out.append("# Convention Profile (draft) — confirm against documented rules and neighbouring files")
     out.append(f"Root: `{meta['root']}` · files listed: {meta['files_listed']} ({meta['file_source']}) · source files scanned: {prof.files_scanned} (main {prof.main_files}, test {prof.test_files}; skipped {prof.files_skipped})")
+    out.append(f"Snapshot: {meta['snapshot']}" + (f" · ref: `{meta['ref']}` · commit: `{meta['commit']}`" if meta['commit'] else " (local edits included; not a diff baseline)"))
+    if meta['sample_incomplete']:
+        out.append(f"Incomplete sample: {meta['skipped_inputs']}; unexpanded Git submodules: {meta['unexpanded_submodules']}. Do not treat absent evidence as proof of absence.")
     out.append("")
     out.append("## Profile summary (paste into the report's **Conventions applied** after confirming)")
     for b in build_summary(prof, layout, exc_kinds):
@@ -893,7 +972,7 @@ def render_markdown(prof: Profile, meta: Dict[str, object]) -> str:
     out.append(f"- Javadoc on public top-level types: {prof.javadoc_public}/{prof.public_types} ({pct(prof.javadoc_public, prof.public_types)}); tags: {fmt_counter(prof.doc_tags)}")
     out.append(f"- TODO style: {fmt_counter(prof.todo)}; wildcard imports: {prof.wildcard_imports}; `this.` in assignments: {fmt_counter(prof.this_prefix)}")
     out.append("")
-    out.append("_Counts are heuristics over added-up declarations; confirm anything you rely on by opening the files. A convention is 'established' at ≥3 occurrences with no stronger competitor (references/repo-conventions.md §1)._")
+    out.append("_Counts are advisory heuristics, not proof of a convention or a reason to suppress a finding. Confirm module-local examples and competing patterns against documented rules (references/repo-conventions.md §1)._")
     return "\n".join(out)
 
 
@@ -913,13 +992,19 @@ def to_json(prof: Profile, meta: Dict[str, object]) -> str:
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default=".", help="Directory to profile (default: current directory).")
+    ap.add_argument("--ref", help="Read only this committed snapshot; use the resolved diff base for reviews. Default: current tree.")
     ap.add_argument("--format", choices=["markdown", "json"], default="markdown")
     ap.add_argument("--max-files", type=int, default=4000, help="Maximum source files to read (default 4000).")
-    ap.add_argument("--include-tests", action="store_true", help="Read all test files even when there are many.")
+    ap.add_argument("--include-tests", action="store_true", help="Disable the separate test sample cap; --max-files still applies.")
     args = ap.parse_args(argv)
-    if not os.path.isdir(args.root):
-        sys.exit(f"error: {args.root} is not a directory")
-    prof, meta = profile_repo(args.root, args.max_files, args.include_tests)
+    if args.max_files < 1:
+        ap.error("--max-files must be positive")
+    if args.ref is None and not os.path.isdir(args.root):
+        ap.error(f"{args.root} is not a directory")
+    try:
+        prof, meta = profile_repo(args.root, args.max_files, args.include_tests, args.ref)
+    except ValueError as ex:
+        ap.error(str(ex))
     print(to_json(prof, meta) if args.format == "json" else render_markdown(prof, meta))
     return 0
 

@@ -2,7 +2,7 @@
 
 Rules written here take precedence over the defaults in `.agents/skills/code-quality-review/` **and** over conventions the reviewer infers from the codebase. Reviewers (Devin, Codex, Claude Code, Factory Droid, humans) read this file before reviewing.
 
-**Only uncommented lines are active.** Everything inside `<!-- -->` below is an example; move a line out of the comment to activate it. As shipped, no overrides are active. Overrides may adjust style rules, architecture rules, severities and scope; they cannot waive BLOCKER-level bugs or security findings.
+**Only uncommented lines are active.** Everything inside `<!-- -->` below is an example; move a line out of the comment to activate it. As shipped, no overrides are active. Overrides may adjust style rules, architecture rules, severities and scope; they cannot make a confirmed correctness or security defect safe. Naming semantics follow the actual documented API contract; a prefix default is not a defect by itself.
 
 ## Conventions (tell the reviewer what the profile might misread)
 <!-- Examples — uncomment and adapt:
