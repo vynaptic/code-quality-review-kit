@@ -1,0 +1,99 @@
+{
+  "_comment": "Single source of truth for the naming lexicon used by scripts/scan_names.py and references/naming-conventions.md. Add legitimate domain verbs to 'approved_verbs' (lowercase). Keep entries sorted within each list.",
+
+  "approved_verbs": [
+    "abort", "accept", "accumulate", "ack", "acknowledge", "acquire", "activate", "adapt", "add", "adjust", "advance", "aggregate", "alert", "allocate", "allow", "analyze", "annotate", "append", "apply", "approve", "archive", "assemble", "assert", "assign", "assume", "attach", "audit", "authenticate", "authorize", "autowire", "average", "await",
+    "backfill", "backup", "batch", "begin", "bill", "bind", "block", "bootstrap", "broadcast", "buffer", "build", "bump", "bundle",
+    "cache", "calculate", "call", "cancel", "canonicalize", "capture", "cast", "categorize", "change", "charge", "checkout", "chunk", "claim", "classify", "clean", "cleanup", "clear", "click", "clone", "close", "coalesce", "coerce", "collapse", "collect", "combine", "commit", "compare", "compile", "complete", "compose", "compress", "compute", "concat", "configure", "confirm", "connect", "construct", "consume", "contribute", "convert", "copy", "count", "crawl", "create", "credit", "customize",
+    "deactivate", "debit", "debounce", "debug", "decline", "decode", "decorate", "decrease", "decrement", "decrypt", "dedupe", "deduplicate", "defer", "delete", "demote", "deny", "deploy", "deposit", "dequeue", "derive", "describe", "deserialize", "destroy", "detach", "detect", "determine", "diff", "disable", "disconnect", "dispatch", "display", "dispose", "dispute", "distill", "document", "downgrade", "download", "draft", "drain", "draw", "drop", "dump", "duplicate",
+    "edit", "embed", "emit", "enable", "encode", "encrypt", "end", "enqueue", "enrich", "ensure", "enter", "enumerate", "escalate", "escape", "estimate", "evaluate", "evict", "examine", "exclude", "execute", "exit", "expand", "expire", "explain", "explore", "export", "extend", "extract",
+    "fail", "fetch", "fill", "filter", "finalize", "find", "finetune", "finish", "fire", "fit", "flag", "flatten", "flush", "focus", "fold", "follow", "forecast", "fork", "format", "forward", "freeze", "fulfil", "fulfill",
+    "gather", "generate", "get", "grant", "greet", "group", "guard",
+    "hash", "hide", "highlight", "hold", "hydrate",
+    "identify", "ignore", "import", "include", "increase", "increment", "index", "infer", "ingest", "init", "initialize", "inject", "insert", "inspect", "install", "instantiate", "intercept", "interpolate", "introspect", "invalidate", "invite", "invoke", "issue", "iterate",
+    "join",
+    "keep", "kill",
+    "label", "launch", "leave", "like", "limit", "link", "lint", "list", "listen", "load", "lock", "log", "login", "logout", "look", "lookup",
+    "map", "mark", "marshal", "mask", "match", "measure", "merge", "migrate", "minify", "modify", "monitor", "mount", "move", "mutate", "mute",
+    "navigate", "negate", "negotiate", "normalize", "notify",
+    "obfuscate", "observe", "obtain", "offboard", "offer", "omit", "onboard", "open", "optimize",
+    "pack", "pad", "paginate", "paint", "parse", "partition", "patch", "pause", "pay", "peek", "persist", "pick", "pin", "ping", "pipe", "place", "plan", "poll", "pop", "populate", "post", "precompute", "predict", "prefetch", "preload", "prepare", "prepend", "preview", "print", "prioritize", "probe", "produce", "promote", "protect", "provide", "provision", "proxy", "prune", "publish", "pull", "purge", "push", "put",
+    "quantize", "query", "queue", "quote",
+    "raise", "rank", "read", "rebuild", "recalculate", "receive", "recompute", "reconcile", "record", "recover", "redact", "redeem", "redirect", "redo", "reduce", "refine", "refresh", "refund", "regenerate", "register", "reindex", "reject", "release", "reload", "remind", "remove", "rename", "render", "renew", "reorder", "repair", "repeat", "replace", "replay", "reply", "report", "reprocess", "request", "require", "rerank", "reschedule", "reserve", "reset", "resize", "resolve", "respond", "restart", "restore", "restrict", "resubmit", "resume", "retain", "retrieve", "retry", "return", "reuse", "reveal", "revert", "review", "revoke", "rewrite", "rollback", "rotate", "round", "route", "run",
+    "sample", "sanitize", "save", "scale", "scan", "schedule", "score", "scrape", "screen", "scroll", "seal", "search", "secure", "seed", "seek", "select", "send", "serialize", "set", "settle", "setup", "share", "shift", "show", "shuffle", "shutdown", "sign", "signin", "signout", "signup", "simulate", "skip", "sleep", "slice", "snapshot", "sort", "spawn", "split", "stage", "star", "start", "stop", "store", "stream", "strip", "submit", "subscribe", "sum", "summarize", "supply", "suspend", "swap", "switch", "sync", "synchronize",
+    "tag", "take", "teardown", "terminate", "test", "throttle", "throw", "toggle", "tokenize", "touch", "trace", "track", "train", "transfer", "transform", "transition", "translate", "transpile", "traverse", "trigger", "trim", "truncate", "tune",
+    "unarchive", "unassign", "unbind", "unblock", "undo", "unflag", "unfollow", "unfreeze", "uninstall", "unlike", "unlink", "unlock", "unmark", "unmarshal", "unmount", "unmute", "unpack", "unpin", "unquote", "unregister", "unset", "unstar", "unsubscribe", "unwrap", "unzip", "update", "upgrade", "upload", "upsert",
+    "validate", "vectorize", "verify", "visit", "void",
+    "wait", "wake", "walk", "warm", "warn", "watch", "weigh", "withdraw", "wrap", "write",
+    "zip"
+  ],
+
+  "vague_verbs": ["deal", "do", "go", "handle", "make", "manage", "operate", "perform", "process", "treat", "work", "check"],
+
+  "predicate_prefixes": ["accepts", "allows", "are", "can", "contains", "did", "does", "equals", "exists", "has", "includes", "is", "matches", "may", "must", "needs", "requires", "should", "supports", "was", "were", "will"],
+
+  "allowed_prefixes": {
+    "_comment": "Prefixes that are not verbs but are idiomatic. 'next_word_must_be_verb' means the following word is checked as the verb (tryParseAmount).",
+    "conversion": ["as", "from", "into", "of", "to", "with"],
+    "event": ["on"],
+    "hook": ["use"],
+    "next_word_must_be_verb": ["try", "maybe", "safe", "safely", "async", "auto", "batch", "bulk", "force", "lazy", "lazily", "pre", "post", "re", "un"],
+    "template_worker": ["do"]
+  },
+
+  "exempt_method_names": [
+    "apply", "call", "clone", "close", "compareTo", "componentDidCatch", "componentDidMount", "componentDidUpdate", "componentWillUnmount", "configure", "constructor", "dispose", "Dispose", "drop", "equals", "Equals", "Error", "finalize", "fmt", "from", "get", "GetHashCode", "hashCode", "init", "into", "invoke", "Invoke", "iterator", "len", "Len", "Less", "main", "Main", "new", "default", "next", "ngAfterViewInit", "ngOnChanges", "ngOnDestroy", "ngOnInit", "onCreate", "onDestroy", "onPause", "onResume", "onStart", "onStop", "render", "run", "Run", "setUp", "setup", "shouldComponentUpdate", "String", "Swap", "tearDown", "teardown", "toString", "ToString", "valueOf", "viewDidAppear", "viewDidLoad", "viewWillAppear", "write", "Write", "Read", "ServeHTTP"
+  ],
+
+  "banned_type_suffixes": {
+    "Manager":   {"confidence": "medium", "hint": "OK only for a resource-lifecycle manager (TransactionManager, CacheManager, ConnectionManager). Otherwise name the real responsibility: what does it calculate, store, schedule or coordinate? (e.g. FeeCalculator, PayoutScheduler)."},
+    "Helper":    {"confidence": "high",   "hint": "Name the real responsibility (e.g. IbanFormatter, RetryPolicy)."},
+    "Helpers":   {"confidence": "high",   "hint": "Split by responsibility and name each class for it."},
+    "Util":      {"confidence": "high",   "hint": "Name the real responsibility (e.g. SlugFormatter, CurrencyConverter)."},
+    "Utils":     {"confidence": "medium", "hint": "OK only as the Spring/Apache static holder: final class, private constructor, all static, stateless, no dependencies, ONE subject in the prefix (StringUtils). Otherwise split by responsibility and name each class for it."},
+    "Utility":   {"confidence": "high",   "hint": "Name the real responsibility."},
+    "Utilities": {"confidence": "high",   "hint": "Split by responsibility."},
+    "Data":      {"confidence": "medium", "hint": "Use the domain noun; 'Data' adds nothing."},
+    "Info":      {"confidence": "medium", "hint": "Use the domain noun (e.g. ShippingAddress, not AddressInfo)."},
+    "Object":    {"confidence": "medium", "hint": "Use the domain noun."},
+    "Stuff":     {"confidence": "high",   "hint": "Use the domain noun."},
+    "Thing":     {"confidence": "high",   "hint": "Use the domain noun."},
+    "Misc":      {"confidence": "high",   "hint": "Split and name by responsibility."},
+    "Impl":      {"confidence": "medium", "hint": "Name the implementation by its distinguishing trait (e.g. JdbcOrderRepository)."},
+    "Wrapper":   {"confidence": "medium", "hint": "Name what it adds (Decorator: CachingX, RetryingX) or what it adapts (Adapter)."},
+    "Processor": {"confidence": "low",    "hint": "OK if it is a real domain term (payment processor); otherwise name what it produces."},
+    "Handler":   {"confidence": "low",    "hint": "OK for event/command/request handlers (OrderPlacedHandler); otherwise name the responsibility."}
+  },
+
+  "banned_type_prefixes": {
+    "Common":  {"confidence": "medium", "hint": "Name by responsibility, not by sharing."},
+    "Misc":    {"confidence": "high",   "hint": "Split and name by responsibility."},
+    "General": {"confidence": "medium", "hint": "Name by responsibility."},
+    "My":      {"confidence": "medium", "hint": "Use the domain noun."}
+  },
+
+  "handler_ok_previous_words": ["Command", "Query", "Event", "Request", "Message", "Webhook", "Exception", "Error", "Notification", "Callback", "Signal", "Job", "Task", "Http"],
+
+  "framework_idiom_suffixes": ["Support", "Template", "Operations", "Resolver", "Registrar", "Registry", "Customizer", "PostProcessor", "Aware", "Interceptor", "Advisor", "Listener", "Factory", "Builder", "Adapter", "Converter", "Mapper", "Validator", "Policy", "Specification", "Repository", "Gateway", "Client", "Controller", "Service", "UseCase", "Calculator"],
+
+  "default_impl_prefixes": ["Default", "Simple", "Standard", "Abstract", "Base", "Generic", "Composite", "Delegating", "Caching", "Retrying", "Logging"],
+
+  "repo_consistency": {
+    "_comment": "scan_names.py downgrades a candidate to 'low' confidence when the base tree already uses the same convention at least min_occurrences times (repo convention wins; see references/repo-conventions.md).",
+    "min_occurrences": 3,
+    "type_suffixes": ["Impl", "Utils", "Util", "Helper", "Helpers", "Manager", "Dao", "Dto", "DTO", "Info", "Data", "Handler", "Processor", "Wrapper"],
+    "vague_verbs": ["check", "handle", "process", "do", "perform", "manage"]
+  },
+
+  "type_verb_prefixes": [
+    "build", "calculate", "check", "compare", "compute", "convert", "create", "delete", "do", "ensure", "execute", "extract", "fetch", "find", "generate", "get", "handle", "initialize", "load", "make", "manage", "notify", "parse", "perform", "persist", "prepare", "process", "remove", "retrieve", "run", "save", "send", "sync", "synchronize", "transform", "update", "validate", "verify"
+  ],
+
+  "type_verb_allowed_suffixes": ["Action", "Activity", "Args", "Command", "Event", "Handler", "Input", "Job", "Operation", "Options", "Output", "Params", "Query", "Request", "Response", "Result", "Spec", "Step", "Task", "Test", "Tests", "UseCase", "Workflow"],
+
+  "phrasal_verbs": ["back up", "cash out", "check in", "check out", "clean up", "log in", "log out", "look up", "opt in", "opt out", "pay out", "roll back", "roll out", "set up", "shut down", "sign in", "sign out", "sign up", "start up", "tear down", "top up", "warm up", "wind down"],
+
+  "vague_nouns": ["All", "Data", "Info", "It", "Item", "Object", "Stuff", "Thing", "Things"],
+
+  "flag_argument_exempt_verbs": ["allow", "enable", "disable", "set", "toggle", "use", "with"]
+}
