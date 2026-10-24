@@ -1,10 +1,10 @@
 ---
-name: code-quality-review
+name: strict-code-review
 description: Review pull requests, diffs, branches, staged changes or files for correctness, repository conventions, naming, design, readability, repeated literals and Java/Spring quality. Use when the user asks to review code or a PR, check naming or SOLID, judge whether a change is over-engineered, enforce the repository's own conventions, or wants a Spring/Java code review. Review-only unless fixes are requested.
 license: MIT (LICENSE in this folder)
 compatibility: Any agent that reads SKILL.md. The three optional scanners need Python 3.8+ and git; they are read-only (git diff, show, ls-files, grep), write nothing and use no network.
 metadata:
-  version: "2.2.0"
+  version: "2.2.1"
   author: "VM (Virendra)"
   languages: "Java and Kotlin first-class; language-neutral guidance for C#, TypeScript/JavaScript, Python, Go, Rust and Swift"
   tags: "code-review, java, spring, kotlin, naming-conventions, solid, clean-code, mybatis"

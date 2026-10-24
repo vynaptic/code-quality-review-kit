@@ -1,7 +1,7 @@
 <!-- code-quality-review-kit:start -->
 ## Skills
 
-Use `.agents/skills/code-quality-review/SKILL.md` for requested code, PR, branch, diff or file reviews. Codex invokes it with `$code-quality-review`; Devin CLI and Factory Droid use `/code-quality-review`. Review-only unless fixes are requested.
+Use `.agents/skills/strict-code-review/SKILL.md` for requested code, PR, branch, diff or file reviews. Codex invokes it with `$strict-code-review`; Devin CLI and Factory Droid use `/strict-code-review`. Review-only unless fixes are requested.
 
 ## Code Review Rules
 

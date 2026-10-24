@@ -20,7 +20,7 @@ trap cleanup EXIT
 
 # Keep disposable sample setup independent of the user's Git configuration.
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0
-if ! cmp -s "$kit/repo/.agents/review-overrides.md" "$kit/repo/.agents/skills/code-quality-review/assets/review-overrides.template.md"; then
+if ! cmp -s "$kit/repo/.agents/review-overrides.md" "$kit/repo/.agents/skills/strict-code-review/assets/review-overrides.template.md"; then
   echo "error: repo/.agents/review-overrides.md and the skill's assets/review-overrides.template.md differ; keep them identical" >&2
   exit 1
 fi
@@ -38,15 +38,15 @@ git -C "$work" add -A
 
 echo
 echo "== Baseline Convention Profile (scripts/scan_conventions.py --ref main)"
-python3 "$work/.agents/skills/code-quality-review/scripts/scan_conventions.py" --root "$work" --ref main
+python3 "$work/.agents/skills/strict-code-review/scripts/scan_conventions.py" --root "$work" --ref main
 
 echo
 echo "== Naming pre-scan (scripts/scan_names.py --base main)"
-(cd "$work" && python3 .agents/skills/code-quality-review/scripts/scan_names.py --base main)
+(cd "$work" && python3 .agents/skills/strict-code-review/scripts/scan_names.py --base main)
 
 echo
 echo "== Literal / data-modelling leads (scripts/scan_literals.py --base main)"
-(cd "$work" && python3 .agents/skills/code-quality-review/scripts/scan_literals.py --base main)
+(cd "$work" && python3 .agents/skills/strict-code-review/scripts/scan_literals.py --base main)
 
 echo
 echo "== Checking expected violations and accepted baseline names"
@@ -57,7 +57,7 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-scripts = root / ".agents/skills/code-quality-review/scripts"
+scripts = root / ".agents/skills/strict-code-review/scripts"
 
 def run(script, *args):
     output = subprocess.check_output([sys.executable, str(scripts / script), *args, "--format", "json"], cwd=root, text=True)

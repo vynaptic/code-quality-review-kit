@@ -1,4 +1,4 @@
-# code-quality-review
+# strict-code-review
 
 A code-review skill for AI coding agents (Claude Code, Codex, Devin, Factory Droid and any other agent that reads `SKILL.md`). It reviews a pull request, branch, diff, staged change or set of files the way a strict Spring/Apache-style maintainer would:
 
@@ -28,7 +28,7 @@ LICENSE                          MIT
 
 ## Using it
 
-- Claude Code / Devin CLI / Factory Droid: `/code-quality-review` (or just ask for a review). Codex: `$code-quality-review`.
+- Claude Code / Devin CLI / Factory Droid: `/strict-code-review` (or just ask for a review). Codex: `$strict-code-review`.
 - The scripts are optional helpers the agent runs from the reviewed repository. They need Python 3.8+ and git, are **read-only** (git diff, show, ls-files, grep), write nothing and never use the network. Without them the agent reviews manually and says so.
 - Per-repository exceptions (your logging facade, exception root, packaging rule, grandfathered names) go in `.agents/review-overrides.md` in the reviewed repository; start from `assets/review-overrides.template.md`. Only uncommented lines are active.
 

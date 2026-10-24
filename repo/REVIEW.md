@@ -1,7 +1,7 @@
 <!-- code-quality-review-kit:start -->
 ## Code quality review
 
-The full workflow is `.agents/skills/code-quality-review/SKILL.md`. Read it and its referenced checks when the review environment supports repository file access. Review-only unless fixes are requested.
+The full workflow is `.agents/skills/strict-code-review/SKILL.md`. Read it and its referenced checks when the review environment supports repository file access. Review-only unless fixes are requested.
 
 - Prioritize correctness, security, compatibility and missing regression coverage. Trace callers and report a concrete trigger, impact, location and fix for bugs.
 - Apply user instructions and active `.agents/review-overrides.md`, then documented contracts and verified repository conventions before default style preferences. Never suppress concrete correctness risks because similar code exists.

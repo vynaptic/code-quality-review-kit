@@ -24,9 +24,9 @@ KEEP=1 examples/java-sample/try.sh      # note the printed path
 cd <printed path>
 ```
 Then:
-- **Claude Code:** `claude` → `/code-quality-review` (or "review this branch against main").
-- **Codex CLI:** `codex` → `$code-quality-review review the staged changes against main`.
-- **Devin CLI:** `devin` → `/code-quality-review`.
-- **Factory Droid:** `droid` → `/code-quality-review` or "review my branch".
+- **Claude Code:** `claude` → `/strict-code-review` (or "review this branch against main").
+- **Codex CLI:** `codex` → `$strict-code-review review the staged changes against main`.
+- **Devin CLI:** `devin` → `/strict-code-review`.
+- **Factory Droid:** `droid` → `/strict-code-review` or "review my branch".
 
 Compare the report with `EXPECTED.md`. Signs the skill is **not** active: no "Conventions applied" section, `*Impl`/`Utils` generic advice without reference to the baseline, no rule IDs, formatting comments.

@@ -1,9 +1,9 @@
 ---
 name: review-guidelines
-description: Repository guidance for Factory automated code review. For a detailed interactive review, invoke code-quality-review instead.
+description: Repository guidance for Factory automated code review. For a detailed interactive review, invoke strict-code-review instead.
 ---
 
-Follow the repository's `REVIEW.md`, active `.agents/review-overrides.md` and, when repository file access permits, `.agents/skills/code-quality-review/SKILL.md`.
+Follow the repository's `REVIEW.md`, active `.agents/review-overrides.md` and, when repository file access permits, `.agents/skills/strict-code-review/SKILL.md`.
 
 Prioritize concrete correctness, security, compatibility and test failures. Cite the trigger, location, evidence and fix. Judge naming and design against actual API/framework contracts and verified repository conventions; scanner counts alone are not proof. Current boundary, invariant, lifecycle or operational needs can justify abstractions. Respect the Java baseline and Spring proxy requirements.
 

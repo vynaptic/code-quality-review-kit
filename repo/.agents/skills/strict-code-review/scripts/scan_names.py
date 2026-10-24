@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Naming pre-scan for the code-quality-review skill.
+"""Naming pre-scan for the strict-code-review skill.
 
 Scans ADDED lines of a change (git diff vs. base, staged changes, a diff file, or
 whole files) and reports CANDIDATE naming violations for methods/functions and

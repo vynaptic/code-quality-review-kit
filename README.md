@@ -13,7 +13,7 @@ The reviewer learns contracts and conventions before applying defaults. Findings
 
 ## Install
 
-Copy `repo/.agents/skills/code-quality-review/` into your repository, add the entry points for the tools you use, and paste the marked block from `repo/AGENTS.md`, `repo/CLAUDE.md` and `repo/REVIEW.md` into your existing files (or copy them if absent). Step by step, plus a non-destructive installer and personal setup: [INSTALL.md](INSTALL.md).
+Copy `repo/.agents/skills/strict-code-review/` into your repository, add the entry points for the tools you use, and paste the marked block from `repo/AGENTS.md`, `repo/CLAUDE.md` and `repo/REVIEW.md` into your existing files (or copy them if absent). Step by step, plus a non-destructive installer and personal setup: [INSTALL.md](INSTALL.md).
 
 ```bash
 python3 scripts/install.py "/path/to/your repository"     # optional: does the copy-and-append for you, never overwrites
@@ -21,10 +21,10 @@ python3 scripts/install.py "/path/to/your repository"     # optional: does the c
 
 | Interactive tool | Discovery | Invoke |
 | --- | --- | --- |
-| Claude Code | `.claude/skills/` wrapper | `/code-quality-review` |
-| Codex CLI / IDE | `.agents/skills/` | `$code-quality-review` |
-| Devin CLI | `.agents/skills/` | `/code-quality-review` |
-| Factory Droid | `.agents/skills/` compatibility path | `/code-quality-review` |
+| Claude Code | `.claude/skills/` wrapper | `/strict-code-review` |
+| Codex CLI / IDE | `.agents/skills/` | `$strict-code-review` |
+| Devin CLI | `.agents/skills/` | `/strict-code-review` |
+| Factory Droid | `.agents/skills/` compatibility path | `/strict-code-review` |
 
 Hosted adapters use `AGENTS.md` for Codex GitHub review, `REVIEW.md` for Devin Review, and `.factory/skills/review-guidelines/SKILL.md` for Factory code review. They do not guarantee the full CLI checklist or report; see [documented platform limits](INSTALL.md#4-how-each-tool-finds-and-runs-it).
 
@@ -44,9 +44,9 @@ The fixture's [README](examples/java-sample/README.md) explains how to review th
 ## Package
 
 ```text
-repo/.agents/skills/code-quality-review/   the skill: SKILL.md, README, LICENSE, references/, assets/, scripts/ (3 read-only scanners)
+repo/.agents/skills/strict-code-review/   the skill: SKILL.md, README, LICENSE, references/, assets/, scripts/ (3 read-only scanners)
 repo/.agents/review-overrides.md           optional repository exceptions (same text as the skill's assets/review-overrides.template.md)
-repo/.claude/skills/code-quality-review/   Claude entrypoint
+repo/.claude/skills/strict-code-review/   Claude entrypoint
 repo/.factory/skills/review-guidelines/    Factory code-review adapter
 repo/AGENTS.md repo/CLAUDE.md repo/REVIEW.md
 scripts/install.py                       optional non-destructive installer

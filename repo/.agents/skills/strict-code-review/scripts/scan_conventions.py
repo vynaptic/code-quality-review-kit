@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convention Profile generator for the code-quality-review skill.
+"""Convention Profile generator for the strict-code-review skill.
 
 Reads a committed snapshot (--ref), or the current tree by default, and prints a DRAFT
 Convention Profile: what this codebase already does for naming, packaging,

@@ -15,7 +15,7 @@ END = b"<!-- code-quality-review-kit:end -->"
 
 def plan_install(target):
     """Check the entire destination before adding assets or appending guidance."""
-    if not (SOURCE / ".agents/skills/code-quality-review/SKILL.md").is_file():
+    if not (SOURCE / ".agents/skills/strict-code-review/SKILL.md").is_file():
         raise ValueError("Incomplete kit: canonical skill is missing under " + str(SOURCE))
     changes = []
     conflicts = set()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repeated-literal and data-modelling lead scanner for the code-quality-review skill.
+"""Repeated-literal and data-modelling lead scanner for the strict-code-review skill.
 
 Read-only. Runs `git` (diff, show, ls-files, rev-parse) and reads files; it never
 writes, never touches the network, never changes the repository.
