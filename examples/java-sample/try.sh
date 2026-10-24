@@ -20,6 +20,10 @@ trap cleanup EXIT
 
 # Keep disposable sample setup independent of the user's Git configuration.
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0
+if ! cmp -s "$kit/repo/.agents/review-overrides.md" "$kit/repo/.agents/skills/code-quality-review/assets/review-overrides.template.md"; then
+  echo "error: repo/.agents/review-overrides.md and the skill's assets/review-overrides.template.md differ; keep them identical" >&2
+  exit 1
+fi
 echo "== temp repository: $work"
 cp -R "$here/baseline/." "$work/"
 cp -R "$kit/repo/." "$work/"
@@ -39,6 +43,10 @@ python3 "$work/.agents/skills/code-quality-review/scripts/scan_conventions.py" -
 echo
 echo "== Naming pre-scan (scripts/scan_names.py --base main)"
 (cd "$work" && python3 .agents/skills/code-quality-review/scripts/scan_names.py --base main)
+
+echo
+echo "== Literal / data-modelling leads (scripts/scan_literals.py --base main)"
+(cd "$work" && python3 .agents/skills/code-quality-review/scripts/scan_literals.py --base main)
 
 echo
 echo "== Checking expected violations and accepted baseline names"
@@ -67,12 +75,19 @@ expected = {("NAME-M3", "processRefund"), ("NAME-M5", "processRefund"),
             ("NAME-T2", "PaymentUtils"), ("NAME-M4", "checkAmount")}
 assert expected <= actual, "Missing expected scanner candidates: " + repr(sorted(expected - actual))
 
+literal_rules = {f["rule"] for f in run("scan_literals.py", "--base", "main")["findings"]}
+expected_literal_rules = {"MYB-SUBSTITUTION", "MYB-LITERAL", "MYB-RESULT-MAP", "MYB-FOREACH-EMPTY", "MYB-FRAGMENT"}
+assert expected_literal_rules <= literal_rules, "Missing expected literal leads: " + repr(sorted(expected_literal_rules - literal_rules))
+
 baseline_paths = subprocess.check_output(["git", "ls-tree", "-r", "--name-only", "-z", "main", "--", "src/main"], cwd=root).decode().split("\0")
-baseline = run("scan_names.py", "--files", *(p for p in baseline_paths if p.endswith(".java")))["findings"]
+java_baseline = [p for p in baseline_paths if p.endswith(".java")]
+baseline = run("scan_names.py", "--files", *java_baseline)["findings"]
 accepted = {"PaymentGateway", "StripePaymentGateway", "fetchDailyLimit", "sendPayout", "getErrorCode", "isGreaterThan"}
 unexpected = [f for f in baseline if f["identifier"] in accepted]
 assert not unexpected, "Accepted baseline names were flagged: " + repr(unexpected)
-print("Scanner assertions passed: expected violations present; accepted baseline names retained.")
+baseline_literals = run("scan_literals.py", "--files", *java_baseline)["findings"]
+assert not baseline_literals, "Baseline has no repeated-literal leads, but the scanner reported: " + repr(baseline_literals)
+print("Scanner assertions passed: expected naming and literal leads present; baseline accepted.")
 PY
 
 echo

@@ -95,5 +95,15 @@
 
   "vague_nouns": ["All", "Data", "Info", "It", "Item", "Object", "Stuff", "Thing", "Things"],
 
-  "flag_argument_exempt_verbs": ["allow", "enable", "disable", "set", "toggle", "use", "with"]
+  "flag_argument_exempt_verbs": ["allow", "enable", "disable", "set", "toggle", "use", "with"],
+
+  "literals": {
+    "_comment": "Used by scripts/scan_literals.py. A literal is a lead when it appears at least min_occurrences times in production code of the scanned set, or when several distinct literals share one context key (closed set). Strings shorter than min_string_length, trivial numbers and log/print arguments are ignored.",
+    "min_occurrences": 3,
+    "min_string_length": 2,
+    "ignored_numbers": [0, 1, -1, 2, 10, 100, 1000],
+    "ignored_strings": ["", " ", ",", ".", ":", ";", "/", "-", "_", "\n", "\t", "{}", "%s", "%d", "true", "false", "null", "utf-8", "UTF-8"],
+    "closed_set_min_distinct": 2,
+    "message_call_prefixes": ["log", "logger", "LOG", "LOGGER", "logging", "console", "print", "println", "printf", "System.out", "System.err", "fmt.Print", "fmt.Sprintf", "fmt.Errorf", "assert", "assertThat", "assertEquals", "require", "check", "throw new", "raise", "Exception(", "Error(", "format(", "String.format", "MessageFormat"]
+  }
 }

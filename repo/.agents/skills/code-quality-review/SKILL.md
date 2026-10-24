@@ -1,10 +1,14 @@
 ---
 name: code-quality-review
-description: Review pull requests, diffs, branches, staged changes or files for correctness, repository conventions, naming, design and readability. Use for code review or Java/Spring quality checks. Review-only unless fixes are requested.
+description: Review pull requests, diffs, branches, staged changes or files for correctness, repository conventions, naming, design, readability, repeated literals and Java/Spring quality. Use when the user asks to review code or a PR, check naming or SOLID, judge whether a change is over-engineered, enforce the repository's own conventions, or wants a Spring/Java code review. Review-only unless fixes are requested.
+license: MIT (LICENSE in this folder)
+compatibility: Any agent that reads SKILL.md. The three optional scanners need Python 3.8+ and git; they are read-only (git diff, show, ls-files, grep), write nothing and use no network.
 metadata:
-  version: "2.1.0"
+  version: "2.2.0"
   author: "VM (Virendra)"
   languages: "Java and Kotlin first-class; language-neutral guidance for C#, TypeScript/JavaScript, Python, Go, Rust and Swift"
+  tags: "code-review, java, spring, kotlin, naming-conventions, solid, clean-code, mybatis"
+  docs_url: "https://github.com/vynaptic/code-quality-review-kit"
 ---
 
 # Code Quality Review
@@ -25,9 +29,11 @@ Paths below are relative to this skill directory, wherever installed. Resolve th
 | [Design principles](references/design-principles.md) | Changed responsibilities, dependencies, state or interfaces |
 | [Patterns and smells](references/design-patterns.md) | Pattern use, duplicated branching, object creation or integrations |
 | [Simplicity and readability](references/simplicity-and-readability.md) | Changed control flow and abstractions |
+| [Literals and data carriers](references/literals-and-data-carriers.md) | Repeated strings/numbers, string-typed state that should be an enum, POJOs that should be builders/records/value objects, MyBatis/JPA/Spring/Python/TypeScript literal rules |
 | [Java quality](references/java-quality-bar.md) | Java/Kotlin; use other languages' own APIs and idioms elsewhere |
 | [Report format](references/report-template.md) | Before reporting |
 | [Naming lexicon](assets/naming-rules.json) | Scanner leads or domain-vocabulary questions |
+| [Overrides template](assets/review-overrides.template.md) | When a repository has no `.agents/review-overrides.md` yet |
 
 ## Workflow
 
@@ -49,12 +55,12 @@ python3 <skill-dir>/scripts/scan_conventions.py --root services/billing --ref <b
 
 Without `--ref`, the profiler describes the current tree; that is useful for orientation but is not evidence of pre-change conventions. Inspect 2–3 relevant neighbors and the governing docs/configuration. Note sampling or read failures. Record the rules that actually influenced the review and the defaults displaced by local contracts.
 
-### 3. Gather naming leads
+### 3. Gather naming and literal leads
 
 ```bash
-python3 <skill-dir>/scripts/scan_names.py --base <base-sha>
-python3 <skill-dir>/scripts/scan_names.py --staged
-python3 <skill-dir>/scripts/scan_names.py --files src/Invoice.java
+python3 <skill-dir>/scripts/scan_names.py --base <base-sha>        # naming candidates on added lines
+python3 <skill-dir>/scripts/scan_literals.py --base <base-sha>     # repeated literals, closed sets, MyBatis/JPA/SQL leads
+python3 <skill-dir>/scripts/scan_names.py --staged                 # both scripts accept --staged, --files, --diff-file
 ```
 
 Choose the mode matching the review. These are regex candidates, not verdicts. Counts are advisory, never automatic waivers; confirm language, module, stereotype and exceptions. Check semantic naming and other identifiers manually. A failed scanner is incomplete evidence, not an approval; continue manually where possible and disclose the gap. An optional candidate failure threshold is not a convention-aware CI gate.
@@ -65,6 +71,7 @@ Choose the mode matching the review. These are regex candidates, not verdicts. C
 - **Repo standards and naming:** enforce the scoped vocabulary, packaging/modules, errors, logging, DI, tests and documentation. Default to action+noun methods (receiver may supply the noun), predicates for booleans, and types named by domain/role and distinguishing implementation trait. Judge `NAME-M2` against the actual API/repo contract, not a prefix alone. A documented remote `getX` is valid; a supposedly pure predicate that writes state is not.
 - **Design:** apply SOLID, composition, DRY/KISS/YAGNI, LoD, Tell-Don't-Ask, CQS, encapsulation, illegal-state prevention, layering and DDD where applicable. Name the concrete cost and smallest safe fix. Use the pattern table only when its problem is present.
 - **Simplicity:** ask what current benefit an interface, layer, generic, option, wrapper or pattern provides. Variation, a boundary, invariant protection, compatibility, an extension contract or an operational requirement can justify it. One implementation or one deployed value alone proves nothing. Do not replace a justified boundary with duplicated or unsafe code.
+- **Repetition and data carriers:** follow [literals-and-data-carriers.md](references/literals-and-data-carriers.md). A literal repeated three or more times (in Java, Python, MyBatis XML, SQL, TypeScript…) gets one named owner; several literals compared under one key are a closed set and become an enum persisted by name/code; a POJO built through a long constructor or a chain of setters becomes an immutable record/value object or a builder when fields are optional. Name the owner type and the drift risk; respect framework needs (JPA entities, binders) and the repository's idiom (Lombok, `StrEnum`, `TextChoices`). `${}` in MyBatis and f-string SQL are injection leads first.
 - **Language/framework:** apply version-appropriate rules. Preserve Spring proxying and ORM requirements before recommending `final`, reduced visibility or records. Check the deployed JDK, not just compiler syntax level, for concurrency advice.
 - **Tests:** require meaningful coverage of new behavior and regressions, including valid exceptions and error paths. Follow the repository's test stack and naming; do not request tests that merely mirror implementation.
 

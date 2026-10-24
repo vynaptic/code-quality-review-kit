@@ -4,8 +4,8 @@ Everything under `repo/` goes into the root of the repository you want reviewed.
 
 ```
 repo/
-├── .agents/skills/code-quality-review/        the skill (SKILL.md, references/, assets/, scripts/) — Codex, Devin, Factory read it here
-├── .agents/review-overrides.md                optional per-repo exceptions (template, nothing active)
+├── .agents/skills/code-quality-review/        the skill (SKILL.md, README, LICENSE, references/, assets/, scripts/) — Codex, Devin, Factory read it here
+├── .agents/review-overrides.md                optional per-repo exceptions (template, nothing active; same file as the skill's assets/review-overrides.template.md)
 ├── .claude/skills/code-quality-review/SKILL.md Claude Code entry point (points at the .agents skill)
 ├── .factory/skills/review-guidelines/SKILL.md  Factory automated PR review guidance
 ├── AGENTS.md                                  Codex (CLI + GitHub review: "## Code Review Rules"); also read by Devin and Droid
@@ -91,12 +91,29 @@ KEEP=1 bash examples/java-sample/try.sh   # keep it, open it in a tool, ask for 
 ## 6. Customise and scan
 
 - `.agents/review-overrides.md`: active (uncommented) rules win over the skill's defaults and inferred conventions; they adjust style, architecture, severity and scope, never correctness or security findings.
-- Domain verbs: `assets/naming-rules.json → approved_verbs`.
-- Scanners, from an installed repository (both read-only, stdlib Python, git only):
+- Domain verbs: `assets/naming-rules.json → approved_verbs`; literal thresholds: `assets/naming-rules.json → literals`.
+- Scanners, from an installed repository (all read-only, stdlib Python, git only):
   ```bash
   base=$(git merge-base HEAD origin/main)
   python3 .agents/skills/code-quality-review/scripts/scan_conventions.py --ref "$base"   # convention profile of the base commit
   python3 .agents/skills/code-quality-review/scripts/scan_names.py --base "$base"        # naming candidates in the diff
-  python3 .agents/skills/code-quality-review/scripts/scan_names.py --staged
+  python3 .agents/skills/code-quality-review/scripts/scan_literals.py --base "$base"     # repeated literals, closed sets (enum candidates), MyBatis/JPA/SQL leads
+  python3 .agents/skills/code-quality-review/scripts/scan_names.py --staged              # all three accept --staged, --files, --diff-file
   ```
   Candidates and counts are leads for the reviewer, not verdicts. `--fail-on high` is an optional CI threshold on raw candidates; a nonzero exit code also signals scanner errors (exit 2).
+
+## 7. Publish to a skill marketplace (Agensi and others)
+
+[Agensi](https://www.agensi.io/skills) and most catalogues take a zip of **one top-level folder named after the skill, with `SKILL.md` at that folder's root**. That folder is exactly `repo/.agents/skills/code-quality-review/`; it is self-contained (`README.md`, `LICENSE`, `references/`, `assets/`, `scripts/`). The entry-point files (`AGENTS.md`, `.claude/…`, `.factory/…`, `REVIEW.md`) are repository plumbing for PR bots and are not part of the package.
+
+```bash
+find repo -name __pycache__ -prune -exec rm -rf {} + -o -name .DS_Store -delete
+uvx --from "git+https://github.com/agentskills/agentskills#subdirectory=skills-ref" skills-ref validate "$PWD/repo/.agents/skills/code-quality-review"   # optional: open-standard validator
+mkdir -p dist && rm -f dist/code-quality-review.zip
+(cd repo/.agents/skills && zip -r ../../../dist/code-quality-review.zip code-quality-review -x "*.DS_Store" "*__pycache__*" "*.pyc")
+unzip -l dist/code-quality-review.zip
+```
+
+Then: Agensi dashboard → Creator Mode → **Submit a Skill** → upload `dist/code-quality-review.zip`, add tags and the listing text (the form pre-fills `name` and `description`; the version, tags and docs link are in `metadata` because the open standard allows only `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools` at the top level, and strict agents reject anything else — type them into the form), choose free or a price. Submissions pass an 8-check automated scan (file structure, file types, dangerous commands, secrets, environment harvesting, network access, obfuscation, prompt injection), an AI review and a human approval, usually within a day. For updates, upload a new zip; the platform bumps the version and blocks an identical zip.
+
+What the scan will see in this skill, and why it passes: text files only, no symlinks, no binaries; scripts call `git` through `subprocess.run([...])` without `shell=True`, read files, write nothing, use no network and read no environment variables; no credentials; no instructions that override agent safety rules. If a reviewer asks about `subprocess`, point at the `compatibility` field and the docstring at the top of each script. Marketplace installs place the skill folder where the agent looks for skills (e.g. `~/.claude/skills/`), so the repository entry points are not needed there; buyers who want PR-bot coverage follow sections 1–2 of this guide.

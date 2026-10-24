@@ -7,8 +7,9 @@ The reviewer learns contracts and conventions before applying defaults. Findings
 - **Correctness first:** trace callers, construct a failing input or interleaving, and check relevant tests.
 - **Contracts before defaults:** documented APIs, framework requirements and verified repository conventions govern naming and structure. Existing repetition never excuses a bug.
 - **Practical design:** assess SOLID, simplicity and readability by current costs and benefits. Boundaries, invariants, lifecycle and operational needs can justify abstraction.
+- **Repeated literals and data carriers:** a string or number repeated three times gets one owner; literals compared under one key become an enum; POJOs built field by field become records, value objects or builders. MyBatis (`${}` substitution, map results, unguarded `<foreach>`), JPA, Spring, Python and TypeScript specifics included.
 - **Java/Spring checks:** respect the compiler/runtime baseline, proxy constraints, exception and logging contracts, transactions, persistence and test stack.
-- **Advisory scanners:** stdlib Python helpers produce a convention inventory and naming candidates. Counts are evidence to inspect, never automatic exemptions or confirmed findings.
+- **Advisory scanners:** stdlib Python helpers produce a convention inventory, naming candidates and repeated-literal leads. Counts are evidence to inspect, never automatic exemptions or confirmed findings.
 
 ## Install
 
@@ -25,7 +26,9 @@ python3 scripts/install.py "/path/to/your repository"     # optional: does the c
 | Devin CLI | `.agents/skills/` | `/code-quality-review` |
 | Factory Droid | `.agents/skills/` compatibility path | `/code-quality-review` |
 
-Hosted adapters use `AGENTS.md` for Codex GitHub review, `REVIEW.md` for Devin Review, and `.factory/skills/review-guidelines/SKILL.md` for Factory code review. They do not guarantee the full CLI checklist or report; see [documented platform limits](INSTALL.md#hosted-pr-review).
+Hosted adapters use `AGENTS.md` for Codex GitHub review, `REVIEW.md` for Devin Review, and `.factory/skills/review-guidelines/SKILL.md` for Factory code review. They do not guarantee the full CLI checklist or report; see [documented platform limits](INSTALL.md#4-how-each-tool-finds-and-runs-it).
+
+The skill folder is also a self-contained [Agent Skills](https://agentskills.io/specification) package (validated with `skills-ref`) ready for marketplaces such as [Agensi](https://www.agensi.io/skills); see [INSTALL.md §7](INSTALL.md#7-publish-to-a-skill-marketplace-agensi-and-others).
 
 ## Verify
 
@@ -41,8 +44,8 @@ The fixture's [README](examples/java-sample/README.md) explains how to review th
 ## Package
 
 ```text
-repo/.agents/skills/code-quality-review/   canonical workflow, references, assets and scanners
-repo/.agents/review-overrides.md           optional repository exceptions
+repo/.agents/skills/code-quality-review/   the skill: SKILL.md, README, LICENSE, references/, assets/, scripts/ (3 read-only scanners)
+repo/.agents/review-overrides.md           optional repository exceptions (same text as the skill's assets/review-overrides.template.md)
 repo/.claude/skills/code-quality-review/   Claude entrypoint
 repo/.factory/skills/review-guidelines/    Factory code-review adapter
 repo/AGENTS.md repo/CLAUDE.md repo/REVIEW.md

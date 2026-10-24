@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.acme.billing.refund.RefundMapper">
+
+  <select id="getDoneRefunds" resultType="map">
+    SELECT id, invoice_id, amount, status, created_at
+    FROM refund
+    WHERE status = 'DONE'
+    ORDER BY ${sortColumn}
+  </select>
+
+  <select id="countDoneRefunds" resultType="int">
+    SELECT COUNT(*) FROM refund WHERE status = 'DONE' AND invoice_id = #{invoiceId}
+  </select>
+
+  <select id="getFailedRefunds" resultType="map">
+    SELECT id, invoice_id, amount, status, created_at
+    FROM refund
+    WHERE status = 'FAILED' AND invoice_id IN
+    <foreach item="id" collection="invoiceIds" open="(" separator="," close=")">#{id}</foreach>
+  </select>
+
+  <update id="markDone">
+    UPDATE refund SET status = 'DONE' WHERE id = #{id} AND status = 'PENDING'
+  </update>
+
+</mapper>

@@ -1,6 +1,6 @@
 ---
 name: code-quality-review
-description: Review code, PRs, branches or files for correctness, repository conventions, naming, design and Java/Spring quality. Review-only unless fixes are requested.
+description: Review code, PRs, branches or files for correctness, repository conventions, naming, design, repeated literals and Java/Spring quality. Use when asked to review code or a PR, check naming or SOLID, judge over-engineering, or enforce repo conventions. Review-only unless fixes are requested.
 argument-hint: "[PR | branch | commit range | files]"
 ---
 
